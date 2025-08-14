@@ -3,42 +3,75 @@ import "./Home.css";
 import logo from "../Logo.png";
 
 const Home = ({ user, setUser }) => {
-  const [previousPrompts] = useState([
-    "Sales report Q1",
-    "Customer demographics",
-    "Inventory status"
-  ]);
+  const [previousPrompts, setPreviousPrompts] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileList, setFileList] = useState([]);
   const [prompt, setPrompt] = useState("");
   const [showMenu, setShowMenu] = useState(false);
 
+  // Fetch history from backend
   useEffect(() => {
-    // Reload user name from localStorage if needed
-    if (!user && localStorage.getItem("bisolUser")) {
-      const stored = JSON.parse(localStorage.getItem("bisolUser"));
-      setUser && setUser(stored);
+    if (user?.email) {
+      fetch(`http://127.0.0.1:8000/get-history/${user.email}`)
+        .then(res => res.json())
+        .then(data => setPreviousPrompts((data.history || []).map(h => h.prompt)))
+        .catch(() => setPreviousPrompts([]));
     }
-  }, [user, setUser]);
+  }, [user]);
 
-  const handleFileChange = (e) => {
+  // Upload file to backend
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    setSelectedFile(file);
-    if (file && !fileList.some(f => f.name === file.name)) {
-      setFileList([...fileList, file]);
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/upload-file", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setSelectedFile(file);
+        setFileList([...fileList, file]);
+      } else {
+        alert("Upload failed");
+      }
+    } catch (err) {
+      alert("Error uploading: " + err.message);
     }
   };
+
   const handleDropdownChange = (e) => {
     const fname = e.target.value;
-    const file = fileList.find(f => f.name === fname) || null;
-    setSelectedFile(file);
+    setSelectedFile(fileList.find(f => f.name === fname) || null);
   };
-  const handleGenerate = () => {
+
+  // Generate dashboard
+  const handleGenerate = async () => {
     if (!selectedFile || !prompt) {
-      alert("Please select a file and enter a prompt!");
+      alert("Please select file & enter a prompt");
       return;
     }
-    alert(`Dashboard for "${selectedFile.name}" with prompt: ${prompt}`);
+    const formData = new FormData();
+    formData.append("user_email", user.email);
+    formData.append("prompt", prompt);
+    formData.append("file_name", selectedFile.name);
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        alert("Dashboard generated!");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
   };
 
   return (
@@ -47,28 +80,16 @@ const Home = ({ user, setUser }) => {
         <div className="logo-greeting-area">
           <img src={logo} alt="BiSol Logo" />
           <span className="logo-text">BiSol</span>
-          <span className="greeting-text">Welcome, {user ? user.name : ""}</span>
+          <span className="greeting-text">Welcome, {user?.name}</span>
         </div>
         <div className="account-dropdown">
-          <button className="account-btn" onClick={() => setShowMenu(prev => !prev)}>
+          <button className="account-btn" onClick={() => setShowMenu(p => !p)}>
             Account ▼
           </button>
           {showMenu && (
             <div className="dropdown-menu">
-              <div className="dropdown-item"
-                onClick={() => {
-                  localStorage.removeItem("bisolUser");
-                  setUser && setUser(null);
-                  setShowMenu(false);
-                  window.location.reload();
-                }}>Sign Out</div>
-              <div className="dropdown-item"
-                onClick={() => {
-                  localStorage.removeItem("bisolUser");
-                  setUser && setUser(null);
-                  setShowMenu(false);
-                  window.location.reload();
-                }}>Add Another Account</div>
+              <div className="dropdown-item" onClick={() => { setUser(null); window.location = "/account"; }}>Sign Out</div>
+              <div className="dropdown-item" onClick={() => { setUser(null); window.location = "/account"; }}>Add Another Account</div>
             </div>
           )}
         </div>
@@ -77,42 +98,25 @@ const Home = ({ user, setUser }) => {
         <aside className="sidebar">
           <h3>Previous Chats / Prompts</h3>
           <ul>
-            {previousPrompts.map((item, idx) => (
-              <li key={idx}>{item}</li>
-            ))}
+            {previousPrompts.map((p, idx) => <li key={idx}>{p}</li>)}
           </ul>
         </aside>
         <main className="main-content">
           <form onSubmit={(e) => { e.preventDefault(); handleGenerate(); }}>
             <div className="form-section">
               <label>Select Excel/CSV File</label>
-              <select
-                value={selectedFile ? selectedFile.name : ""}
-                onChange={handleDropdownChange}
-              >
+              <select value={selectedFile ? selectedFile.name : ""} onChange={handleDropdownChange}>
                 <option value="">Choose existing file...</option>
-                {fileList.map((file, idx) => (
-                  <option key={idx} value={file.name}>{file.name}</option>
+                {fileList.map((f, i) => (
+                  <option key={i} value={f.name}>{f.name}</option>
                 ))}
               </select>
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileChange}
-              />
-              {selectedFile && (
-                <div className="selected-file">
-                  Selected: {selectedFile.name}
-                </div>
-              )}
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
+              {selectedFile && <div className="selected-file">Selected: {selectedFile.name}</div>}
             </div>
             <div className="form-section">
               <label>Prompt</label>
-              <textarea
-                value={prompt}
-                onChange={e => setPrompt(e.target.value)}
-                placeholder="Describe your dashboard needs..."
-              />
+              <textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Your dashboard request..." />
             </div>
             <button type="submit" className="generate-btn">Generate Dashboard</button>
           </form>

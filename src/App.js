@@ -10,26 +10,23 @@ function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Small delay to show loading screen
     setTimeout(() => {
       const storedUser = localStorage.getItem("bisolUser");
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
+      if (storedUser) setUser(JSON.parse(storedUser));
       setLoading(false);
     }, 1500);
   }, []);
 
-  if (loading) {
-    return <LoadingScreen />;
-  }
+  if (loading) return <LoadingScreen />;
 
   return (
     <Router>
       <Routes>
         <Route
           path="/"
-          element={user ? <Home user={user} setUser={setUser} /> : <Navigate to="/account" replace />}
+          element={
+            user ? <Home user={user} setUser={setUser} /> : <Navigate to="/account" replace />
+          }
         />
         <Route path="/account" element={<AccountCreation setUser={setUser} />} />
         <Route path="/dashboard" element={<DashboardProvidingPage />} />
