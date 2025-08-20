@@ -1,0 +1,16 @@
+/* Tailwind CSS base layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global Styling Tweaks */
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: #f8fafc; /* Fallback background color */
+}
+
+/* Change button cursor to pointer for better UI feedback */
+button {
+  cursor: pointer;
+}
