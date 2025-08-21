@@ -1,0 +1,29 @@
+{
+  "name": "project-bisol",
+  "version": "1.0.0",
+  "description": "Bisol Electron-React app",
+  "main": "main.js",
+  "author": "Shekhar Pandey",
+  "private": true,
+  
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.bisol.app",
+    "productName": "Bisol",
+    "files": [
+      "main.js",
+      "Frontend/build/**/*",
+      "'Frontend', 'build',BiSol.ico"
+    ],
+    "directories": {
+      "buildResources": "Frontend/public"
+    },
+    "win": {
+      "icon": "'Frontend', 'build', BiSol.ico",
+      "target": "nsis"
+    }
+  }
+}
