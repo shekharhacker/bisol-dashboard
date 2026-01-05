@@ -1,250 +1,140 @@
-import React, { useState, useEffect } from "react";
-import "./Home.css";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import "../styles/Home.css";
 import logo from "../assests/Logo.png";
 
-const Home = ({ user, setUser }) => {
-  const [previousPrompts, setPreviousPrompts] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileList, setFileList] = useState([]);
+export default function Home() {
+  const navigate = useNavigate();
+
+  const [user, setUser] = useState(null);
+  const [file, setFile] = useState(null);
   const [prompt, setPrompt] = useState("");
-  const [showMenu, setShowMenu] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Fetch history
+  // ---------------- LOAD USER ONCE ----------------
   useEffect(() => {
-    if (user?.email) {
-      fetch(`http://localhost:8000/get-history/${user.email}`)
-        .then((res) => res.json())
-        .then((data) =>
-          setPreviousPrompts((data.history || []).map((h) => h.prompt))
-        )
-        .catch(() => setPreviousPrompts([]));
+    const storedUser = localStorage.getItem("bisolUser");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    } else {
+      navigate("/login", { replace: true });
     }
-  }, [user]);
+  }, [navigate]);
 
-  // Upload file
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  // ---------------- LOGOUT ----------------
+  const logout = () => {
+    localStorage.removeItem("bisolUser");
+    navigate("/login", { replace: true });
+  };
+
+  // ---------------- FILE UPLOAD ----------------
+  const handleFileUpload = async (e) => {
+    const selected = e.target.files[0];
+    if (!selected) return;
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", selected);
 
     try {
-      const res = await fetch("http://localhost:8000/upload-file", {
+      await fetch("http://127.0.0.1:8000/upload-file", {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
-      if (data.status === "success") {
-        setSelectedFile(file);
-        setFileList((prev) => [...prev, file]);
-      } else {
-        alert("Upload failed");
-      }
+      setFile(selected);
     } catch (err) {
-      alert("Error uploading: " + err.message);
+      alert("File upload failed");
     }
   };
 
-  const handleDropdownChange = (e) => {
-    const fname = e.target.value;
-    setSelectedFile(fileList.find((f) => f.name === fname) || null);
-  };
-
-  // Main Generate Dashboard
-  const handleGenerate = async () => {
-    if (!selectedFile || !prompt) {
-      alert("Please select file & enter a prompt");
+  // ---------------- GENERATE DASHBOARD ----------------
+  const generateDashboard = async () => {
+    if (!file || !prompt.trim()) {
+      alert("Please upload a file and enter a prompt");
       return;
     }
+
+    setLoading(true);
 
     const formData = new FormData();
     formData.append("user_email", user.email);
     formData.append("prompt", prompt);
-    formData.append("file_name", selectedFile.name);
+    formData.append("file_name", file.name);
 
     try {
-      const res = await fetch("http://localhost:8000/generate-dashboard", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch(
+        "http://127.0.0.1:8000/generate-dashboard",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
       const data = await res.json();
 
-      if (data.status === "success") {
-        window.latestDashboard = data.dashboard_image;
-        openDashboardWindow(data);
-      } else {
-        alert("Dashboard generation failed.");
-      }
+      // ---- FALLBACK SAFE (even if OpenAI fails) ----
+      window.latestDashboardResponse = {
+        dashboard_spec: data.dashboard_spec || {
+          dashboard_title: "Dashboard Preview",
+          charts: data.charts || [],
+        },
+        preview_rows: data.sample || [],
+      };
+
+      navigate("/dashboard");
     } catch (err) {
-      alert("Error: " + err.message);
+      alert("Dashboard generation failed");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // POPUP WINDOW FUNCTION
-  function openDashboardWindow(data) {
-    const dashboardImage = data.dashboard_image;
-    const insights = data.insights || [];
-
-    let win = window.open("", "_blank", "width=1400,height=900");
-
-    win.document.write(`
-        <html>
-        <head>
-            <title>BiSol Dashboard</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-        </head>
-
-        <body class="bg-gray-100 p-6 text-gray-900">
-            <h1 class="text-3xl font-bold mb-4 text-blue-600">
-                Dashboard Preview
-            </h1>
-
-            <div class="bg-white shadow-lg rounded-lg p-4">
-                <img src="data:image/png;base64,${dashboardImage}" 
-                    class="rounded-lg shadow w-full"/>
-            </div>
-
-            <h2 class="text-xl font-semibold mt-6">Ask for updates</h2>
-
-            <textarea id="updatePrompt"
-                class="border w-full p-2 mt-2 rounded h-24"
-                placeholder="Describe changes you want..."></textarea>
-
-            <button onclick="window.updateDashboard()"
-                class="mt-4 px-4 py-2 bg-blue-600 text-white rounded shadow">
-                Regenerate Dashboard
-            </button>
-
-            <button onclick="window.downloadDashboard()"
-                class="mt-4 ml-2 px-4 py-2 bg-green-600 text-white rounded shadow">
-                Download Dashboard
-            </button>
-
-            <script>
-                window.updateDashboard = function() {
-                    const prompt = document.getElementById("updatePrompt").value;
-                    if (!prompt) return alert("Enter a modification prompt first.");
-
-                    window.opener.modifyDashboard(prompt)
-                        .then(updated => {
-                            window.location.reload();
-                        });
-                }
-
-                window.downloadDashboard = function() {
-                    const link = document.createElement("a");
-                    link.href = "data:image/png;base64," + window.opener.latestDashboard;
-                    link.download = "dashboard.png";
-                    link.click();
-                }
-            </script>
-        </body>
-        </html>
-    `);
-    win.document.close();
+  // ---------------- GUARD ----------------
+  if (!user) {
+    return <div className="loading-home">Loading...</div>;
   }
 
-  // Backend call for regeneration
-  window.modifyDashboard = async function (updatePrompt) {
-    const formData = new FormData();
-    formData.append("user_email", user.email);
-    formData.append("prompt", updatePrompt);
-    formData.append("file_name", selectedFile.name);
-
-    const res = await fetch("http://localhost:8000/generate-dashboard", {
-      method: "POST",
-      body: formData,
-    });
-
-    const updatedData = await res.json();
-    window.latestDashboard = updatedData.dashboard_image;
-    return updatedData;
-  };
-
+  // ---------------- UI ----------------
   return (
-    <div className="container">
-      <header className="topbar">
-        <div className="logo-greeting-area">
-          <img src={logo} alt="BiSol Logo" />
-          <span className="logo-text">BiSol</span>
-          <span className="greeting-text">Welcome, {user?.name}</span>
+    <div className="home">
+      {/* HEADER */}
+      <header className="home-header">
+        <div className="brand">
+          <img src={logo} alt="BiSol" />
+          <span>BiSol</span>
         </div>
-
-        <div className="account-dropdown">
-          <button className="account-btn" onClick={() => setShowMenu((p) => !p)}>
-            Account ▼
-          </button>
-          {showMenu && (
-            <div className="dropdown-menu">
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  setUser(null);
-                  window.location = "/account";
-                }}
-              >
-                Sign Out
-              </div>
-            </div>
-          )}
-        </div>
+        <button className="logout-btn" onClick={logout}>
+          Logout
+        </button>
       </header>
 
-      <div className="main-layout">
-        <aside className="sidebar">
-          <h3>Previous Chats / Prompts</h3>
-          <ul>
-            {previousPrompts.map((p, idx) => (
-              <li key={idx}>{p}</li>
-            ))}
-          </ul>
-        </aside>
+      {/* MAIN */}
+      <main className="home-main">
+        <h1>Welcome, {user.name}</h1>
 
-        <main className="main-content">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleGenerate();
-            }}
+        <div className="card">
+          <label>Upload CSV / Excel</label>
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleFileUpload}
+          />
+
+          <label>Dashboard Prompt</label>
+          <textarea
+            placeholder="Example: Create a dashboard with bar chart for industry comparison and a pie chart for market share"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+          />
+
+          <button
+            className="generate-btn"
+            onClick={generateDashboard}
+            disabled={loading}
           >
-            <div className="form-section">
-              <label>Select Excel/CSV File</label>
-              <select
-                value={selectedFile ? selectedFile.name : ""}
-                onChange={handleDropdownChange}
-              >
-                <option value="">Choose existing file...</option>
-                {fileList.map((f, i) => (
-                  <option key={i} value={f.name}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
-              {selectedFile && (
-                <div className="selected-file">Selected: {selectedFile.name}</div>
-              )}
-            </div>
-
-            <div className="form-section">
-              <label>Prompt</label>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Your dashboard request..."
-              />
-            </div>
-
-            <button type="submit" className="generate-btn">
-              Generate Dashboard
-            </button>
-          </form>
-        </main>
-      </div>
+            {loading ? "Generating..." : "Generate Dashboard"}
+          </button>
+        </div>
+      </main>
     </div>
   );
-};
-
-export default Home;
+}

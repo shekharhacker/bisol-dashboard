@@ -1,77 +1,122 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import "../styles/AccountCreation.css";
+import logo from "../assests/Logo.png";
 
-const AccountCreation = ({ setUser }) => {
-  // Form states
+export default function AccountCreation({ setUser }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
+  const [confirmPassword, setConfirmPassword] = useState("");
   const navigate = useNavigate();
 
-  // Handle user account creation form submission
-  const handleCreateAccount = async (e) => {
+  // ---- Validators ----
+  const validateEmail = (email) =>
+    /^[a-zA-Z0-9._%+-]+@(gmail|yahoo|outlook|hotmail)\.com$/.test(email);
+
+  const validatePassword = (password) =>
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(password);
+
+  // ---- CREATE ACCOUNT ----
+  const handleCreateAccount = (e) => {
     e.preventDefault();
-    // Basic validation
-    if (!name || !email || !password) {
-      alert("Please fill all fields");
+
+    if (!name.trim()) {
+      alert("Name is required");
       return;
     }
 
-    setLoading(true);
-
-    const formData = new FormData();
-    formData.append("name", name);
-    formData.append("email", email);
-    // Password is not sent to backend per current backend code (consider security)
-    // You might want to handle password securely in backend or via auth service
-
-    try {
-      const res = await fetch("http://127.0.0.1:8000/create-user", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (data.status === "success") {
-        setUser({ name, email });
-        navigate("/");
-      } else {
-        alert("Error: " + (data.message || "Unknown error"));
-      }
-    } catch (err) {
-      alert("Server error: " + err.message);
-    } finally {
-      setLoading(false);
+    if (!validateEmail(email)) {
+      alert("Use a valid email (gmail, yahoo, outlook, hotmail)");
+      return;
     }
+
+    if (!validatePassword(password)) {
+      alert(
+        "Password must be at least 8 characters and include uppercase, lowercase, number & special character"
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
+
+    // ---- GET EXISTING USERS ----
+    const storedUsers = JSON.parse(localStorage.getItem("bisolUsers")) || [];
+
+    // ---- CHECK DUPLICATE EMAIL ----
+    const alreadyExists = storedUsers.some(
+      (user) => user.email === email
+    );
+
+    if (alreadyExists) {
+      alert("Account already exists. Please login.");
+      navigate("/login");
+      return;
+    }
+
+    // ---- SAVE USER ----
+    const newUser = { name, email, password };
+
+    const updatedUsers = [...storedUsers, newUser];
+    localStorage.setItem("bisolUsers", JSON.stringify(updatedUsers));
+
+    // ---- AUTO LOGIN ----
+    localStorage.setItem("bisolUser", JSON.stringify(newUser));
+    setUser(newUser);
+    navigate("/home");
   };
 
   return (
-    <div className="inline-acc-container">
-      <form className="inline-acc-form" onSubmit={handleCreateAccount}>
+    <div className="account-container">
+      <form className="account-box" onSubmit={handleCreateAccount}>
+        <img src={logo} alt="BiSol Logo" className="account-logo" />
+
         <h2>Create Account</h2>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" required />
+
         <input
+          type="text"
+          placeholder="Full Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+
+        <input
+          type="email"
+          placeholder="Email (gmail, yahoo, etc.)"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          type="email"
-          required
         />
+
         <input
+          type="password"
+          placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          type="password"
-          required
         />
-        <button type="submit" disabled={loading}>
-          {loading ? "Creating..." : "Create Account"}
-        </button>
+
+        <input
+          type="password"
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+        />
+
+        <button type="submit">Create Account</button>
+
+        <p className="hint">
+          Password must contain uppercase, lowercase, number & special character
+        </p>
+
+        <p
+          className="login-link"
+          onClick={() => navigate("/login")}
+        >
+          Already have an account? Login
+        </p>
       </form>
     </div>
   );
-};
-
-export default AccountCreation;
+}
