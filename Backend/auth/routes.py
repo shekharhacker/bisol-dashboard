@@ -20,12 +20,7 @@ def get_db():
 # -------- REGISTER --------
 @router.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
+    print("Register called with:", user.email)
 
     new_user = User(
         name=user.name,
@@ -37,8 +32,9 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "User registered successfully"}
+    print("User saved with id:", new_user.id)
 
+    return {"message": "User registered successfully"}
 # -------- LOGIN --------
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
