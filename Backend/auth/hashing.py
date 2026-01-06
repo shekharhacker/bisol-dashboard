@@ -1,6 +1,6 @@
 from passlib.context import CryptContext
 
-# Password hashing context
+# Password hashaing context
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto"
