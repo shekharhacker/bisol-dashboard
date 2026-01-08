@@ -3,14 +3,16 @@ import { useNavigate } from "react-router-dom";
 import "../styles/AccountCreation.css";
 import logo from "../assests/Logo.png";
 
-export default function AccountCreation({ setUser }) {
+export default function AccountCreation() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
-  // ---- Validators ----
+  // ---- Validators (UX ONLY) ----
   const validateEmail = (email) =>
     /^[a-zA-Z0-9._%+-]+@(gmail|yahoo|outlook|hotmail)\.com$/.test(email);
 
@@ -18,7 +20,7 @@ export default function AccountCreation({ setUser }) {
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(password);
 
   // ---- CREATE ACCOUNT ----
-  const handleCreateAccount = (e) => {
+  const handleCreateAccount = async (e) => {
     e.preventDefault();
 
     if (!name.trim()) {
@@ -43,30 +45,35 @@ export default function AccountCreation({ setUser }) {
       return;
     }
 
-    // ---- GET EXISTING USERS ----
-    const storedUsers = JSON.parse(localStorage.getItem("bisolUsers")) || [];
+    setLoading(true);
 
-    // ---- CHECK DUPLICATE EMAIL ----
-    const alreadyExists = storedUsers.some(
-      (user) => user.email === email
-    );
+    try {
+      const res = await fetch("http://127.0.0.1:8000/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+        }),
+      });
 
-    if (alreadyExists) {
-      alert("Account already exists. Please login.");
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.detail || "Registration failed");
+        return;
+      }
+
+      alert("Account created successfully. Please login.");
       navigate("/login");
-      return;
+    } catch (err) {
+      alert("Server error. Try again later.");
+    } finally {
+      setLoading(false);
     }
-
-    // ---- SAVE USER ----
-    const newUser = { name, email, password };
-
-    const updatedUsers = [...storedUsers, newUser];
-    localStorage.setItem("bisolUsers", JSON.stringify(updatedUsers));
-
-    // ---- AUTO LOGIN ----
-    localStorage.setItem("bisolUser", JSON.stringify(newUser));
-    setUser(newUser);
-    navigate("/home");
   };
 
   return (
@@ -104,16 +111,15 @@ export default function AccountCreation({ setUser }) {
           onChange={(e) => setConfirmPassword(e.target.value)}
         />
 
-        <button type="submit">Create Account</button>
+        <button type="submit" disabled={loading}>
+          {loading ? "Creating Account..." : "Create Account"}
+        </button>
 
         <p className="hint">
           Password must contain uppercase, lowercase, number & special character
         </p>
 
-        <p
-          className="login-link"
-          onClick={() => navigate("/login")}
-        >
+        <p className="login-link" onClick={() => navigate("/login")}>
           Already have an account? Login
         </p>
       </form>

@@ -9,15 +9,10 @@ import DashboardProvidingPage from "./pages/DashboardProvidingPage";
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
-  const [user, setUser] = useState(null);
 
   // ---- SHOW SPLASH ONLY ON FIRST LOAD ----
   useEffect(() => {
     const timer = setTimeout(() => {
-      const storedUser = localStorage.getItem("bisolUser");
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
       setShowSplash(false);
     }, 1500);
 
@@ -26,7 +21,8 @@ function App() {
 
   if (showSplash) return <Splash />;
 
-  const isLoggedIn = !!user;
+  // 🔐 BACKEND AUTH CHECK
+  const isLoggedIn = !!localStorage.getItem("bisol_token");
 
   return (
     <Router>
@@ -35,11 +31,7 @@ function App() {
         <Route
           path="/login"
           element={
-            isLoggedIn ? (
-              <Navigate to="/home" replace />
-            ) : (
-              <Login setUser={setUser} />
-            )
+            isLoggedIn ? <Navigate to="/home" replace /> : <Login />
           }
         />
 
@@ -47,11 +39,7 @@ function App() {
         <Route
           path="/create-account"
           element={
-            isLoggedIn ? (
-              <Navigate to="/home" replace />
-            ) : (
-              <AccountCreation setUser={setUser} />
-            )
+            isLoggedIn ? <Navigate to="/home" replace /> : <AccountCreation />
           }
         />
 
@@ -59,11 +47,7 @@ function App() {
         <Route
           path="/home"
           element={
-            isLoggedIn ? (
-              <Home setUser={setUser} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            isLoggedIn ? <Home /> : <Navigate to="/login" replace />
           }
         />
 
@@ -80,16 +64,10 @@ function App() {
         />
 
         {/* ROOT */}
-        <Route
-          path="/"
-          element={<Navigate to="/login" replace />}
-        />
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* FALLBACK */}
-        <Route
-          path="*"
-          element={<Navigate to="/" replace />}
-        />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

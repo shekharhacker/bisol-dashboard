@@ -6,17 +6,16 @@ import logo from "../assests/Logo.png";
 export default function Login({ setUser }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
   // ---- Validators ----
   const validateEmail = (email) =>
     /^[a-zA-Z0-9._%+-]+@(gmail|yahoo|outlook|hotmail)\.com$/.test(email);
 
-  const validatePassword = (password) =>
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(password);
-
   // ---- LOGIN HANDLER ----
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!validateEmail(email)) {
@@ -24,29 +23,48 @@ export default function Login({ setUser }) {
       return;
     }
 
-    if (!validatePassword(password)) {
-      alert(
-        "Password must contain uppercase, lowercase, number, special character and be at least 8 characters long"
-      );
+    if (!password) {
+      alert("Password is required");
       return;
     }
 
-    // ---- GET STORED USERS ----
-    const storedUsers = JSON.parse(localStorage.getItem("bisolUsers")) || [];
+    setLoading(true);
 
-    const foundUser = storedUsers.find(
-      (u) => u.email === email && u.password === password
-    );
+    try {
+      const res = await fetch("http://127.0.0.1:8000/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-    if (!foundUser) {
-      alert("Invalid credentials or account not found");
-      return;
+      if (!res.ok) {
+        alert("Invalid email or password");
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+
+      // ---- STORE AUTH SESSION ----
+      localStorage.setItem("bisol_token", data.access_token);
+      localStorage.setItem("bisol_user_email", email);
+
+      // Optional: keep frontend user state
+      if (setUser) {
+        setUser({ email });
+      }
+
+      navigate("/home");
+    } catch (error) {
+      alert("Login failed. Backend not reachable.");
+    } finally {
+      setLoading(false);
     }
-
-    // ---- SUCCESS ----
-    localStorage.setItem("bisolUser", JSON.stringify(foundUser));
-    setUser(foundUser);
-    navigate("/home");
   };
 
   return (
@@ -61,6 +79,7 @@ export default function Login({ setUser }) {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          disabled={loading}
         />
 
         <input
@@ -68,9 +87,12 @@ export default function Login({ setUser }) {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          disabled={loading}
         />
 
-        <button type="submit">Login</button>
+        <button type="submit" disabled={loading}>
+          {loading ? "Logging in..." : "Login"}
+        </button>
 
         <p className="note">
           Don’t have an account?{" "}
