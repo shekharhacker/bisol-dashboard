@@ -1,21 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from auth.dependencies import get_current_user
 
-from database import SessionLocal
+from database import get_db
 from models import User
 from auth.schemas import UserCreate, UserLogin
 from auth.hashing import hash_password, verify_password
 from auth.jwt import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
-# -------- DB Dependency --------
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # -------- REGISTER --------
 @router.post("/register")
@@ -51,4 +44,12 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type": "bearer"
+    }
+    
+#-------Dashboard--------
+@router.get("/generate-dashboard")
+def generate_dashboard(current_user = Depends(get_current_user)):
+    return {
+        "message": "Secure dashboard data",
+        "user": current_user.email
     }

@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 # ---------- REGISTER AUTH ----------
-app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(auth_router, tags=["Authentication"])
 
 # ---------- PATHS ----------
 BASE_DIR = Path(__file__).parent.resolve()
