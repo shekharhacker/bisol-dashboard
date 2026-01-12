@@ -10,22 +10,15 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const userEmail = localStorage.getItem("bisol_user_email");
+  const userName = localStorage.getItem("bisol_user_name");
   const token = localStorage.getItem("bisol_token");
 
-  // 🔐 AUTH GUARD
-  useEffect(() => {
-    if (!token) {
-      navigate("/login", { replace: true });
-    }
-  }, [navigate, token]);
 
   // 🚪 LOGOUT (NO SPLASH, NO LOADING)
-  const logout = () => {
-    localStorage.removeItem("bisol_token");
-    localStorage.removeItem("bisol_user_email");
-    navigate("/login", { replace: true });
-  };
+  const handleLogout = () => {
+  localStorage.removeItem("bisol_token");
+  window.location.href = "/login";
+};
 
   // 📁 FILE UPLOAD
   const handleFileUpload = async (e) => {
@@ -88,9 +81,9 @@ export default function Home() {
   };
 
   // ⏳ SAFE LOADING
-  if (!token) {
+  /*if (!token) {
     return <div className="loading-home">Loading...</div>;
-  }
+  }*/
 
   return (
     <div className="home">
@@ -99,13 +92,13 @@ export default function Home() {
           <img src={logo} alt="BiSol" />
           <span>BiSol</span>
         </div>
-        <button className="logout-btn" onClick={logout}>
+        <button className="logout-btn" onClick={handleLogout}>
           Logout
         </button>
       </header>
 
       <main className="home-main">
-        <h1>Welcome to BiSol</h1>
+        <h1>Welcome to BiSol,{userName || "User"}</h1>
 
         <div className="card">
           <label>Upload CSV / Excel</label>

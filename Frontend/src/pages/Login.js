@@ -52,6 +52,7 @@ export default function Login({ setUser }) {
 
       // ---- STORE AUTH SESSION ----
       localStorage.setItem("bisol_token", data.access_token);
+      localStorage.setItem("bisol_user_name", data.name);
       localStorage.setItem("bisol_user_email", email);
 
       // Optional: keep frontend user state
@@ -59,7 +60,7 @@ export default function Login({ setUser }) {
         setUser({ email });
       }
 
-      navigate("/home");
+      window.location.href = "/home";
     } catch (error) {
       alert("Login failed. Backend not reachable.");
     } finally {

@@ -9,17 +9,41 @@ const DashboardProvidingPage = () => {
   const [regenPrompt, setRegenPrompt] = useState("");
 
   useEffect(() => {
-    // Read data passed from Home.js
-    const stored = window.latestDashboardResponse;
+    const token = localStorage.getItem("bisol_token");
 
-    if (!stored || !stored.dashboard_spec) {
-      setLoading(false);
+    if (!token) {
+      window.location.href = "/login";
       return;
     }
 
-    setDashboardSpec(stored.dashboard_spec);
-    setPreviewRows(stored.preview_rows || []);
-    setLoading(false);
+    fetch("http://127.0.0.1:8000/auth/generate-dashboard", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          localStorage.removeItem("bisol_token");
+          window.location.href = "/login";
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (!data) return;
+
+        // Temporary secure dashboard structure
+        setDashboardSpec({
+          dashboard_title: "Secure BiSol Dashboard",
+          charts: [],
+        });
+
+        setPreviewRows([]);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
   }, []);
 
   // ---------------- SAFE CHART DATA GENERATOR ----------------
@@ -42,7 +66,7 @@ const DashboardProvidingPage = () => {
 
   // ---------------- UI STATES ----------------
   if (loading) {
-    return <div className="dashboard-loading">Generating dashboard...</div>;
+    return <div className="dashboard-loading">Loading dashboard...</div>;
   }
 
   if (!dashboardSpec) {
@@ -54,21 +78,26 @@ const DashboardProvidingPage = () => {
       {/* HEADER */}
       <header className="dashboard-header">
         <img src={logo} alt="BiSol" />
-        <h1>{dashboardSpec.dashboard_title || "Dashboard Preview"}</h1>
+        <h1>{dashboardSpec.dashboard_title}</h1>
       </header>
 
       {/* MAIN GRID */}
       <div className="dashboard-grid">
         {/* CHARTS */}
         <div className="dashboard-content">
-          {dashboardSpec.charts?.map((chart, idx) => {
+          {dashboardSpec.charts.length === 0 && (
+            <div className="chart-card">
+              <p>No charts yet. Analytics coming next.</p>
+            </div>
+          )}
+
+          {dashboardSpec.charts.map((chart, idx) => {
             const data = generateChartData(chart);
 
             return (
               <div className="chart-card" key={idx}>
                 <h3>{chart.title}</h3>
                 <pre>{JSON.stringify(data, null, 2)}</pre>
-                {/* Later this becomes real charts */}
               </div>
             );
           })}

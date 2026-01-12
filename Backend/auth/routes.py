@@ -42,9 +42,12 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     token = create_access_token({"sub": db_user.email})
 
     return {
-        "access_token": token,
-        "token_type": "bearer"
+    "access_token": token,
+    "token_type": "bearer",
+    "name": db_user.name,
+    "email": db_user.email
     }
+
     
 #-------Dashboard--------
 @router.get("/generate-dashboard")

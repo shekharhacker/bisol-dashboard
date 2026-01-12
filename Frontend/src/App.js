@@ -22,7 +22,7 @@ function App() {
   if (showSplash) return <Splash />;
 
   // 🔐 BACKEND AUTH CHECK
-  const isLoggedIn = !!localStorage.getItem("bisol_token");
+  const isLoggedIn = Boolean(localStorage.getItem("bisol_token"));
 
   return (
     <Router>
@@ -30,9 +30,7 @@ function App() {
         {/* LOGIN */}
         <Route
           path="/login"
-          element={
-            isLoggedIn ? <Navigate to="/home" replace /> : <Login />
-          }
+          element={isLoggedIn ? <Navigate to="/home" replace /> : <Login />}
         />
 
         {/* CREATE ACCOUNT */}
@@ -46,21 +44,13 @@ function App() {
         {/* HOME */}
         <Route
           path="/home"
-          element={
-            isLoggedIn ? <Home /> : <Navigate to="/login" replace />
-          }
+          element={isLoggedIn ? <Home /> : <Navigate to="/login" replace />}
         />
 
         {/* DASHBOARD */}
         <Route
           path="/dashboard"
-          element={
-            isLoggedIn ? (
-              <DashboardProvidingPage />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
+          element={isLoggedIn ? <DashboardProvidingPage /> : <Navigate to="/login" replace />}
         />
 
         {/* ROOT */}
