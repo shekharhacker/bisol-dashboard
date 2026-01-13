@@ -32,6 +32,9 @@ export default function Home() {
       await fetch("http://127.0.0.1:8000/upload-file", {
         method: "POST",
         body: formData,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
       });
       setFile(selected);
     } catch {

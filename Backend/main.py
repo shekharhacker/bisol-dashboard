@@ -1,4 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form,Depends
+from auth.dependencies import get_current_user
+from models import User
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import pandas as pd
@@ -58,6 +60,7 @@ def root():
 # ---------- FILE UPLOAD ----------
 @app.post("/upload-file")
 async def upload_file(file: UploadFile = File(...)):
+    current_user: User = Depends(get_current_user)
     file_path = UPLOAD_DIR / file.filename
     with file_path.open("wb") as f:
         f.write(await file.read())
