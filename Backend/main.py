@@ -1,6 +1,8 @@
-from fastapi import FastAPI, UploadFile, File, Form,Depends
+from fastapi import FastAPI, UploadFile, File, Form,Depends, HTTPException
 from auth.dependencies import get_current_user
-from models import User
+from models import User, Dashboard
+from sqlalchemy.orm import Session
+from database import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import pandas as pd
@@ -70,9 +72,10 @@ async def upload_file(file: UploadFile = File(...)):
 # ---------- DASHBOARD ----------
 @app.post("/generate-dashboard")
 def generate_dashboard(
-    user_email: str = Form(...),
     prompt: str = Form(...),
     file_name: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     file_path = UPLOAD_DIR / file_name
 
@@ -83,8 +86,6 @@ def generate_dashboard(
             df = pd.read_excel(file_path)
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-    save_history(user_email, prompt, file_name)
 
     # ---------- SAFE FALLBACK (NO OPENAI REQUIRED) ----------
     dashboard_spec = {
@@ -100,9 +101,51 @@ def generate_dashboard(
         ]
     }
 
+    preview_rows = df.head(5).to_dict(orient="records")
+
+    # ---------- STORE / UPDATE DASHBOARD ----------
+    existing_dashboard = (
+        db.query(Dashboard)
+        .filter(Dashboard.user_id == current_user.id)
+        .first()
+    )
+
+    if existing_dashboard:
+        existing_dashboard.dashboard_spec = dashboard_spec
+        existing_dashboard.preview_rows = preview_rows
+    else:
+        new_dashboard = Dashboard(
+            user_id=current_user.id,
+            dashboard_spec=dashboard_spec,
+            preview_rows=preview_rows
+        )
+        db.add(new_dashboard)
+
+    db.commit()
+
     return {
         "status": "success",
-        "dashboard_spec": dashboard_spec,
-        "columns": list(df.columns),
-        "preview_rows": df.head(5).to_dict(orient="records")
+        "message": "Dashboard generated and saved successfully"
+    }
+#---------Dashboard data-----------
+@app.get("/dashboard-data")
+def get_dashboard_data(
+     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    dashboard = (
+        db.query(Dashboard)
+        .filter(Dashboard.user_id == current_user.id)
+        .first()
+    )
+
+    if not dashboard:
+        raise HTTPException(
+            status_code=404,
+            detail="No dashboard found for this user"
+        )
+
+    return {
+        "dashboard_spec": dashboard.dashboard_spec,
+        "preview_rows": dashboard.preview_rows
     }

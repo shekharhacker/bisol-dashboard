@@ -16,7 +16,7 @@ const DashboardProvidingPage = () => {
       return;
     }
 
-    fetch("http://127.0.0.1:8000/auth/generate-dashboard", {
+    fetch("http://127.0.0.1:8000/dashboard-data", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -27,18 +27,16 @@ const DashboardProvidingPage = () => {
           window.location.href = "/login";
           return null;
         }
+        if (!res.ok) {
+          throw new Error("Failed to load dashboard");
+        }
         return res.json();
       })
       .then((data) => {
         if (!data) return;
 
-        // Temporary secure dashboard structure
-        setDashboardSpec({
-          dashboard_title: "Secure BiSol Dashboard",
-          charts: [],
-        });
-
-        setPreviewRows([]);
+        setDashboardSpec(data.dashboard_spec);
+        setPreviewRows(data.preview_rows);
         setLoading(false);
       })
       .catch(() => {
@@ -111,7 +109,7 @@ const DashboardProvidingPage = () => {
         </aside>
       </div>
 
-      {/* REGENERATE */}
+      {/* REGENERATE (future) */}
       <div className="dashboard-regenerate">
         <h3>Any changes required?</h3>
         <textarea

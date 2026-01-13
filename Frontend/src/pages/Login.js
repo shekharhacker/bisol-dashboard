@@ -52,8 +52,8 @@ export default function Login({ setUser }) {
 
       // ---- STORE AUTH SESSION ----
       localStorage.setItem("bisol_token", data.access_token);
-      localStorage.setItem("bisol_user_name", data.name);
-      localStorage.setItem("bisol_user_email", email);
+      localStorage.setItem("bisol_user_name", data.user.name);
+      localStorage.setItem("bisol_user_email", data.user.email);
 
       // Optional: keep frontend user state
       if (setUser) {

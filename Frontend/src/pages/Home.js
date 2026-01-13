@@ -10,7 +10,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const userName = localStorage.getItem("bisol_user_name");
+  const userName = localStorage.getItem("bisol_user_name") || "User";
   const token = localStorage.getItem("bisol_token");
 
 
@@ -52,7 +52,6 @@ export default function Home() {
     setLoading(true);
 
     const formData = new FormData();
-    formData.append("user_email", userEmail);
     formData.append("prompt", prompt);
     formData.append("file_name", file.name);
 
@@ -101,7 +100,7 @@ export default function Home() {
       </header>
 
       <main className="home-main">
-        <h1>Welcome to BiSol,{userName || "User"}</h1>
+        <h1>Welcome to BiSol,{userName}</h1>
 
         <div className="card">
           <label>Upload CSV / Excel</label>
