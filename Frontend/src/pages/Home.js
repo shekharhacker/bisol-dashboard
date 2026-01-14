@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/Home.css";
 import logo from "../assests/Logo.png";
@@ -9,16 +9,16 @@ export default function Home() {
   const [file, setFile] = useState(null);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const userName = localStorage.getItem("bisol_user_name") || "User";
   const token = localStorage.getItem("bisol_token");
 
-
-  // 🚪 LOGOUT (NO SPLASH, NO LOADING)
+  // 🚪 LOGOUT
   const handleLogout = () => {
-  localStorage.removeItem("bisol_token");
-  window.location.href = "/login";
-};
+    localStorage.removeItem("bisol_token");
+    window.location.href = "/login";
+  };
 
   // 📁 FILE UPLOAD
   const handleFileUpload = async (e) => {
@@ -29,23 +29,41 @@ export default function Home() {
     formData.append("file", selected);
 
     try {
-      await fetch("http://127.0.0.1:8000/upload-file", {
+      const res = await fetch("http://127.0.0.1:8000/upload-file", {
         method: "POST",
-        body: formData,
         headers: {
           Authorization: `Bearer ${token}`,
-        }
+        },
+        body: formData,
       });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || "File upload failed");
+        setFile(null);
+        setUploadSuccess(false);
+        return;
+      }
+
       setFile(selected);
-    } catch {
-      alert("File upload failed");
+      setUploadSuccess(true);
+    } catch (e) {
+      console.error(e);
+      alert("File upload failed (network error)");
+      setFile(null);
+      setUploadSuccess(false);
     }
   };
 
   // 📊 GENERATE DASHBOARD
   const generateDashboard = async () => {
-    if (!file || !prompt.trim()) {
-      alert("Please upload a file and enter a prompt");
+    if (!uploadSuccess) {
+      alert("Please upload a valid file before generating dashboard");
+      return;
+    }
+
+    if (!prompt.trim()) {
+      alert("Please enter a dashboard prompt");
       return;
     }
 
@@ -56,36 +74,28 @@ export default function Home() {
     formData.append("file_name", file.name);
 
     try {
-      const res = await fetch(
-        "http://127.0.0.1:8000/generate-dashboard",
-        {
-          method: "POST",
-          body: formData,
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
-      const data = await res.json();
-
-      window.latestDashboardResponse = {
-        dashboard_spec: data.dashboard_spec,
-        preview_rows: data.preview_rows,
-      };
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || "Dashboard generation failed");
+        return;
+      }
 
       navigate("/dashboard");
-    } catch {
-      alert("Dashboard generation failed");
+    } catch (e) {
+      console.error(e);
+      alert("Dashboard generation failed (network error)");
     } finally {
       setLoading(false);
     }
   };
-
-  // ⏳ SAFE LOADING
-  /*if (!token) {
-    return <div className="loading-home">Loading...</div>;
-  }*/
 
   return (
     <div className="home">
@@ -100,7 +110,7 @@ export default function Home() {
       </header>
 
       <main className="home-main">
-        <h1>Welcome to BiSol,{userName}</h1>
+        <h1>Welcome to BiSol, {userName}</h1>
 
         <div className="card">
           <label>Upload CSV / Excel</label>
@@ -112,7 +122,7 @@ export default function Home() {
 
           <label>Dashboard Prompt</label>
           <textarea
-            placeholder="Example: Create a dashboard with bar chart for industry comparison and pie chart for market share"
+            placeholder="Example: Create a dashboard with bar chart for industry comparison"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />

@@ -10,6 +10,16 @@ from datetime import datetime
 import os
 import json
 
+#------------UPLOADS SECURITY VALIDS-----------
+Max_File_Size=10*1024
+
+Allowed_extensions={".csv",".xls",".xlsx"}
+
+ALLOWED_MIME_TYPES = {
+    "text/csv",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 # ---------- IMPORT AUTH ROUTER ----------
 from auth.routes import router as auth_router
 
@@ -30,8 +40,10 @@ app.include_router(auth_router, tags=["Authentication"])
 
 # ---------- PATHS ----------
 BASE_DIR = Path(__file__).parent.resolve()
-UPLOAD_DIR = BASE_DIR / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_ROOT = Path("uploads")
+UPLOAD_ROOT.mkdir(exist_ok=True)
+"""UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)"""
 
 HISTORY_FILE = BASE_DIR / "history.csv"
 
@@ -61,12 +73,47 @@ def root():
 
 # ---------- FILE UPLOAD ----------
 @app.post("/upload-file")
-async def upload_file(file: UploadFile = File(...)):
-    current_user: User = Depends(get_current_user)
-    file_path = UPLOAD_DIR / file.filename
-    with file_path.open("wb") as f:
-        f.write(await file.read())
-    return {"status": "success", "filename": file.filename}
+async def upload_file(file: UploadFile = File(...),
+    current_user = Depends(get_current_user),
+    ):
+     #----------Extension validation----------
+    ext = Path(file.filename).suffix.lower()
+    if ext not in Allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Only CSV and Excel files are allowed."
+        )
+    #-----------MIME type validation----------
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid MIME type for uploaded file."
+        )
+    #----------File size validation------------
+    file_bytes = file.file.read()
+    if len(file_bytes) > Max_File_Size:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Maximum allowed size is 10 MB."
+        )
+    file.file.seek(0)
+
+     # Create user-specific directory
+    user_dir = UPLOAD_ROOT / f"user_{current_user.id}"
+    user_dir.mkdir(exist_ok=True)
+
+    # Final file path
+    file_path = user_dir / file.filename
+
+    # Save file
+    with open(file_path, "wb") as buffer:
+        buffer.write(file.file.read())
+
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "stored_path": str(file_path),
+    }
 
 
 # ---------- DASHBOARD ----------
@@ -77,7 +124,11 @@ def generate_dashboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    file_path = UPLOAD_DIR / file_name
+    user_dir = UPLOAD_ROOT / f"user_{current_user.id}"
+    file_path = user_dir / file_name
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Uploaded file not found")
 
     try:
         if file_name.lower().endswith(".csv"):
@@ -85,9 +136,8 @@ def generate_dashboard(
         else:
             df = pd.read_excel(file_path)
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=400, detail=str(e))
 
-    # ---------- SAFE FALLBACK (NO OPENAI REQUIRED) ----------
     dashboard_spec = {
         "dashboard_title": "Generated Dashboard",
         "charts": [
@@ -103,7 +153,6 @@ def generate_dashboard(
 
     preview_rows = df.head(5).to_dict(orient="records")
 
-    # ---------- STORE / UPDATE DASHBOARD ----------
     existing_dashboard = (
         db.query(Dashboard)
         .filter(Dashboard.user_id == current_user.id)
@@ -114,19 +163,16 @@ def generate_dashboard(
         existing_dashboard.dashboard_spec = dashboard_spec
         existing_dashboard.preview_rows = preview_rows
     else:
-        new_dashboard = Dashboard(
+        db.add(Dashboard(
             user_id=current_user.id,
             dashboard_spec=dashboard_spec,
             preview_rows=preview_rows
-        )
-        db.add(new_dashboard)
+        ))
 
     db.commit()
 
-    return {
-        "status": "success",
-        "message": "Dashboard generated and saved successfully"
-    }
+    return {"status": "success"}
+
 #---------Dashboard data-----------
 @app.get("/dashboard-data")
 def get_dashboard_data(
