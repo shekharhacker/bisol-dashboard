@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form,Depends, HTTPException
 from auth.dependencies import get_current_user
-from models import User, Dashboard
+from models import User, Dashboard ,Upload
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from database import get_db
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,7 @@ import os
 import json
 
 #------------UPLOADS SECURITY VALIDS-----------
-Max_File_Size=10*1024
+Max_File_Size=10*1024*1024
 
 Allowed_extensions={".csv",".xls",".xlsx"}
 
@@ -73,46 +74,80 @@ def root():
 
 # ---------- FILE UPLOAD ----------
 @app.post("/upload-file")
-async def upload_file(file: UploadFile = File(...),
+async def upload_file(
+    file: UploadFile = File(...),
     current_user = Depends(get_current_user),
-    ):
-     #----------Extension validation----------
+    db: Session = Depends(get_db),
+):
+    # ---------- Extension validation ----------
     ext = Path(file.filename).suffix.lower()
     if ext not in Allowed_extensions:
         raise HTTPException(
             status_code=400,
             detail="Invalid file type. Only CSV and Excel files are allowed."
         )
-    #-----------MIME type validation----------
+
+    # ---------- MIME type validation ----------
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=400,
             detail="Invalid MIME type for uploaded file."
         )
-    #----------File size validation------------
-    file_bytes = file.file.read()
-    if len(file_bytes) > Max_File_Size:
-        raise HTTPException(
-            status_code=400,
-            detail="File too large. Maximum allowed size is 10 MB."
-        )
-    file.file.seek(0)
 
-     # Create user-specific directory
+    # ---------- Create user-specific directory ----------
     user_dir = UPLOAD_ROOT / f"user_{current_user.id}"
     user_dir.mkdir(exist_ok=True)
 
-    # Final file path
     file_path = user_dir / file.filename
 
-    # Save file
+    # ---------- Stream-safe file write + size validation ----------
+    total_size = 0
     with open(file_path, "wb") as buffer:
-        buffer.write(file.file.read())
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB chunks
+            if not chunk:
+                break
+
+            total_size += len(chunk)
+            if total_size > Max_File_Size:
+                buffer.close()
+                file_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=400,
+                    detail="File too large. Maximum allowed size is 10 MB."
+                )
+
+            buffer.write(chunk)
+
+    # ---------- Save metadata ----------
+    db_upload = Upload(
+        user_id=current_user.id,
+        filename=file.filename,
+        file_size=total_size,
+    )
+    db.add(db_upload)
+    db.commit()
+
+    # ---------- Cleanup: keep latest 3 uploads ----------
+    uploads = (
+        db.query(Upload)
+        .filter(Upload.user_id == current_user.id)
+        .order_by(desc(Upload.uploaded_at))
+        .all()
+    )
+
+    for old in uploads[3:]:
+        old_file = user_dir / old.filename
+        if old_file.exists():
+            old_file.unlink()
+        db.delete(old)
+
+    db.commit()
 
     return {
         "status": "success",
         "filename": file.filename,
-        "stored_path": str(file_path),
+        "size_bytes": total_size,
     }
 
 
