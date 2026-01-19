@@ -6,7 +6,6 @@ import logo from "../assests/Logo.png";
 export default function Home() {
   const navigate = useNavigate();
 
-  const [file, setFile] = useState(null);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -40,17 +39,15 @@ export default function Home() {
       if (!res.ok) {
         const err = await res.json();
         alert(err.detail || "File upload failed");
-        setFile(null);
         setUploadSuccess(false);
         return;
       }
 
-      setFile(selected);
+      // ✅ Upload successful
       setUploadSuccess(true);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
       alert("File upload failed (network error)");
-      setFile(null);
       setUploadSuccess(false);
     }
   };
@@ -70,8 +67,7 @@ export default function Home() {
     setLoading(true);
 
     const formData = new FormData();
-    formData.append("prompt", prompt);
-    formData.append("file_name", file.name);
+    formData.append("prompt", prompt); // ✅ ONLY prompt
 
     try {
       const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
@@ -89,8 +85,8 @@ export default function Home() {
       }
 
       navigate("/dashboard");
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
       alert("Dashboard generation failed (network error)");
     } finally {
       setLoading(false);
@@ -122,7 +118,7 @@ export default function Home() {
 
           <label>Dashboard Prompt</label>
           <textarea
-            placeholder="Example: Create a dashboard with bar chart for industry comparison"
+            placeholder="Example: Show sales distribution by region"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />

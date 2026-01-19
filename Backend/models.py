@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String , JSON , TIMESTAMP , ForeignKey ,BigInteger,DateTime
+from sqlalchemy import Column, Integer, String , JSON , TIMESTAMP , ForeignKey ,BigInteger,DateTime,Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base
@@ -15,14 +15,20 @@ class Dashboard(Base):
     __tablename__ = "dashboards"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     dashboard_spec = Column(JSON, nullable=False)
     preview_rows = Column(JSON, nullable=False)
 
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    prompt = Column(Text)
+    background_color = Column(String(20), default="#ffffff")
 
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now()
+    )
     # relationship (optional but recommended)
     user = relationship("User", backref="dashboards")
 

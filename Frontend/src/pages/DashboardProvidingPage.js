@@ -1,13 +1,61 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import "../styles/DashboardProvidingPage.css";
+import ChartFactory from "../components/charts/ChartFactory";
 import logo from "../assests/Logo.png";
+import * as htmlToImage from "html-to-image";
+import jsPDF from "jspdf";
+
+//--------------THEME STATES SETTINGS---------------
+  const THEMES = {
+    light: {
+      canvas: {
+        backgroundColor: "#ffffff",
+      },
+      chart: {
+        bar: "#2563eb",
+        line: "#2563eb",
+        pie: ["#2563eb", "#22c55e", "#f59e0b", "#ef4444"],
+      },
+    },
+
+    dark: {
+      canvas: {
+        backgroundColor: "#111827",
+      },
+      chart: {
+        bar: "#38bdf8",
+        line: "#38bdf8",
+        pie: ["#38bdf8", "#22c55e", "#f59e0b", "#f87171"],
+      },
+    },
+
+    corporate: {
+      canvas: {
+        backgroundColor: "#f8fafc",
+      },
+      chart: {
+        bar: "#0f172a",
+        line: "#0f172a",
+        pie: ["#0f172a", "#64748b", "#94a3b8"],
+      },
+    },
+  };
+
 
 const DashboardProvidingPage = () => {
+  // ---------------- REFS & STATE ----------------
+  const dashboardRef = useRef(null);
+  const [canvasConfig, setCanvasConfig] = useState({
+  width: "100%",
+  height: "600px",
+  backgroundColor: "#ffffff",
+  });
   const [dashboardSpec, setDashboardSpec] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regenPrompt, setRegenPrompt] = useState("");
 
+  // ---------------- FETCH DASHBOARD DATA ----------------
   useEffect(() => {
     const token = localStorage.getItem("bisol_token");
 
@@ -33,34 +81,152 @@ const DashboardProvidingPage = () => {
         return res.json();
       })
       .then((data) => {
-        if (!data) return;
+        const spec = data.dashboard_spec;
 
-        setDashboardSpec(data.dashboard_spec);
+        setDashboardSpec(spec);
         setPreviewRows(data.preview_rows);
-        setLoading(false);
-      })
-      .catch(() => {
+
+        if (spec.canvas) {
+          setCanvasConfig(spec.canvas);
+        }
+
         setLoading(false);
       });
   }, []);
 
+  //----------------- DASHBOARD SPEC PERSISTS------------
+  const updateDashboardSpec = (newCanvasConfig) => {
+  setCanvasConfig(newCanvasConfig);
+
+  setDashboardSpec((prevSpec) => {
+    if (!prevSpec) return prevSpec;
+
+    return {
+      ...prevSpec,
+      canvas: newCanvasConfig,
+    };
+  });
+};
+
+  // ---------------- DOWNLOAD FUNCTIONS ----------------
+  const downloadPNG = async () => {
+    if (!dashboardRef.current) {
+      alert("Dashboard not ready");
+      return;
+    }
+
+    try {
+      const dataUrl = await htmlToImage.toPng(dashboardRef.current, {
+        backgroundColor: canvasConfig.backgroundColor,
+        pixelRatio: 2,
+      });
+
+      const link = document.createElement("a");
+      link.download = "dashboard.png";
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to download image");
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!dashboardRef.current) return;
+
+    try {
+      const dataUrl = await htmlToImage.toPng(dashboardRef.current, {
+        backgroundColor: canvasConfig.backgroundColor,
+        pixelRatio: 2,
+      });
+
+      const pdf = new jsPDF("landscape", "pt", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      pdf.addImage(
+        dataUrl,
+        "PNG",
+        20,
+        20,
+        pageWidth - 40,
+        pageHeight - 40
+      );
+
+      pdf.save("dashboard.pdf");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to download PDF");
+    }
+  };
+
   // ---------------- SAFE CHART DATA GENERATOR ----------------
   const generateChartData = (chart) => {
-    if (!chart || !chart.column || previewRows.length === 0) return [];
+    if (!chart || !chart.x || previewRows.length === 0) return [];
 
-    const counts = {};
+    // COUNT-based charts
+    if (chart.y === "__count__") {
+      const counts = {};
 
-    previewRows.forEach((row) => {
-      const value = row[chart.column];
-      if (!value) return;
-      counts[value] = (counts[value] || 0) + 1;
-    });
+      previewRows.forEach((row) => {
+        const value = row[chart.x];
+        if (value === null || value === undefined) return;
+        counts[value] = (counts[value] || 0) + 1;
+      });
 
-    return Object.entries(counts).map(([key, val]) => ({
-      label: key,
-      value: val,
+      return Object.entries(counts).map(([key, val]) => ({
+        label: key,
+        value: val,
+      }));
+    }
+
+    // Numeric charts (future-ready)
+    return previewRows.map((row) => ({
+      label: row[chart.x],
+      value: row[chart.y],
     }));
   };
+
+  //----------------- APPLYING THEME METHOD--------
+    const applyTheme = (themeName) => {
+    const theme = THEMES[themeName];
+
+    // Update canvas
+    setCanvasConfig((prev) => ({
+      ...prev,
+      backgroundColor: theme.canvas.backgroundColor,
+    }));
+
+    // Apply colors to charts
+    setDashboardSpec((prev) => ({
+      ...prev,
+      charts: prev.charts.map((chart) => {
+        if (chart.type === "bar") {
+          return {
+            ...chart,
+            style: { color: theme.chart.bar },
+          };
+        }
+
+        if (chart.type === "line") {
+          return {
+            ...chart,
+            style: { color: theme.chart.line },
+          };
+        }
+
+        if (chart.type === "pie") {
+          return {
+            ...chart,
+            style: { colors: theme.chart.pie },
+          };
+        }
+
+        return chart;
+      }),
+    }));
+  };
+
 
   // ---------------- UI STATES ----------------
   if (loading) {
@@ -71,55 +237,170 @@ const DashboardProvidingPage = () => {
     return <div className="dashboard-error">No dashboard data available.</div>;
   }
 
+  // ---------------- RENDER ----------------
   return (
-    <div className="dashboard-container">
-      {/* HEADER */}
-      <header className="dashboard-header">
-        <img src={logo} alt="BiSol" />
-        <h1>{dashboardSpec.dashboard_title}</h1>
-      </header>
+  <div className="dashboard-container">
+  {/* HEADER */}
+  <header className="dashboard-header">
+    <img src={logo} alt="BiSol" />
+    <h1>{dashboardSpec.dashboard_title}</h1>
+  </header>
 
-      {/* MAIN GRID */}
-      <div className="dashboard-grid">
-        {/* CHARTS */}
-        <div className="dashboard-content">
-          {dashboardSpec.charts.length === 0 && (
-            <div className="chart-card">
-              <p>No charts yet. Analytics coming next.</p>
+  {/* MAIN GRID */}
+  <div className="dashboard-grid">
+    {/* DASHBOARD CANVAS (EXPORT TARGET) */}
+    <div
+      ref={dashboardRef}
+      className="dashboard-canvas"
+      style={{
+        width: canvasConfig.width,
+        height: canvasConfig.height,
+        backgroundColor: canvasConfig.backgroundColor,
+      }}
+    >
+      <div className="dashboard-content">
+        {dashboardSpec.charts.length === 0 && (
+          <div className="chart-card">
+            <p>No charts yet. Analytics coming next.</p>
+          </div>
+        )}
+
+        {dashboardSpec.charts.map((chart, idx) => {
+          const data = generateChartData(chart);
+
+          return (
+            <div className="chart-card" key={idx}>
+              <h3>{chart.title}</h3>
+              <ChartFactory chart={chart} data={data} />
             </div>
-          )}
-
-          {dashboardSpec.charts.map((chart, idx) => {
-            const data = generateChartData(chart);
-
-            return (
-              <div className="chart-card" key={idx}>
-                <h3>{chart.title}</h3>
-                <pre>{JSON.stringify(data, null, 2)}</pre>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* DOWNLOAD PANEL */}
-        <aside className="dashboard-actions">
-          <h3>Download</h3>
-          <button className="btn blue">As Image (PNG)</button>
-          <button className="btn green">As PDF</button>
-        </aside>
-      </div>
-
-      {/* REGENERATE (future) */}
-      <div className="dashboard-regenerate">
-        <h3>Any changes required?</h3>
-        <textarea
-          value={regenPrompt}
-          onChange={(e) => setRegenPrompt(e.target.value)}
-          placeholder="Describe changes you want..."
-        />
-        <button className="btn primary">Regenerate Dashboard</button>
+          );
+        })}
       </div>
     </div>
+
+    {/* SIDEBAR CONTROLS */}
+    <aside className="dashboard-actions">
+      {/* THEMES */}
+      <h3>Themes</h3>
+      <button className="btn" onClick={() => applyTheme("light")}>
+        Light
+      </button>
+      <button className="btn" onClick={() => applyTheme("dark")}>
+        Dark
+      </button>
+      <button className="btn" onClick={() => applyTheme("corporate")}>
+        Corporate
+      </button>
+
+      <hr style={{ margin: "16px 0" }} />
+
+      {/* BACKGROUND */}
+      <h3>Background</h3>
+      <button
+        className="btn"
+        onClick={() =>
+          updateDashboardSpec({
+            ...canvasConfig,
+            backgroundColor: "#ffffff",
+          })
+        }
+      >
+        White
+      </button>
+      <button
+        className="btn"
+        onClick={() =>
+          updateDashboardSpec({
+            ...canvasConfig,
+            backgroundColor: "#f5f7fb",
+          })
+        }
+      >
+        Light Gray
+      </button>
+      <button
+        className="btn"
+        onClick={() =>
+          updateDashboardSpec({
+            ...canvasConfig,
+            backgroundColor: "#111827",
+          })
+        }
+      >
+        Dark
+      </button>
+
+      <hr style={{ margin: "16px 0" }} />
+
+      {/* CANVAS SIZE */}
+      <h3>Canvas Size</h3>
+      <button
+        type="button"
+        className="btn"
+        onClick={() =>
+          updateDashboardSpec({
+            ...canvasConfig,
+            width: "100%",
+            height: "600px",
+          })
+        }
+      >
+        Presentation (16:9)
+      </button>
+
+      <button
+        type="button"
+        className="btn"
+        onClick={() =>
+          updateDashboardSpec({
+            ...canvasConfig,
+            width: "794px",
+            height: "1123px",
+          })
+        }
+      >
+        Report (A4)
+      </button>
+
+      <button
+        type="button"
+        className="btn"
+        onClick={() =>
+          updateDashboardSpec({
+            ...canvasConfig,
+            width: "100%",
+            height: "auto",
+          })
+        }
+      >
+        Full Width
+      </button>
+
+      <hr style={{ margin: "16px 0" }} />
+
+      {/* DOWNLOAD */}
+      <h3>Download</h3>
+      <button className="btn blue" onClick={downloadPNG}>
+        As Image (PNG)
+      </button>
+      <button className="btn green" onClick={downloadPDF}>
+        As PDF
+      </button>
+    </aside>
+  </div>
+
+  {/* REGENERATE (FUTURE) */}
+  <div className="dashboard-regenerate">
+    <h3>Any changes required?</h3>
+    <textarea
+      value={regenPrompt}
+      onChange={(e) => setRegenPrompt(e.target.value)}
+      placeholder="Describe changes you want..."
+    />
+    <button className="btn primary">Regenerate Dashboard</button>
+  </div>
+</div>
+
   );
 };
 

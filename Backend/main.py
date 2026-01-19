@@ -40,9 +40,9 @@ app.add_middleware(
 app.include_router(auth_router, tags=["Authentication"])
 
 # ---------- PATHS ----------
-BASE_DIR = Path(__file__).parent.resolve()
-UPLOAD_ROOT = Path("uploads")
-UPLOAD_ROOT.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_ROOT = BASE_DIR / "uploads"
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 """UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)"""
 
@@ -65,6 +65,33 @@ def get_history(user_email: str):
     df = pd.read_csv(HISTORY_FILE)
     return df[df["user_email"] == user_email].to_dict(orient="records")
 
+def make_json_safe(obj):
+    """
+    Recursively convert Pandas / NumPy objects to JSON-serializable types
+    """
+    if isinstance(obj, dict):
+        return {k: make_json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_safe(v) for v in obj]
+    elif hasattr(obj, "isoformat"):  # handles pandas.Timestamp & datetime
+        return obj.isoformat()
+    else:
+        return obj
+
+def infer_chart_type(prompt: str) -> str:
+    p = prompt.lower()
+
+    # Pie chart indicators
+    if any(word in p for word in ["share", "percentage", "ratio", "contribution"]):
+        return "pie"
+
+    # Line chart indicators (future-ready)
+    if any(word in p for word in ["trend", "over time", "timeline", "growth"]):
+        return "line"
+
+    # Default
+    return "bar"
+
 
 # ---------- HEALTH ----------
 @app.get("/")
@@ -76,7 +103,7 @@ def root():
 @app.post("/upload-file")
 async def upload_file(
     file: UploadFile = File(...),
-    current_user = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # ---------- Extension validation ----------
@@ -94,17 +121,17 @@ async def upload_file(
             detail="Invalid MIME type for uploaded file."
         )
 
-    # ---------- Create user-specific directory ----------
+    # ---------- User directory ----------
     user_dir = UPLOAD_ROOT / f"user_{current_user.id}"
-    user_dir.mkdir(exist_ok=True)
+    user_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = user_dir / file.filename
 
-    # ---------- Stream-safe file write + size validation ----------
+    # ---------- Stream-safe file write ----------
     total_size = 0
     with open(file_path, "wb") as buffer:
         while True:
-            chunk = await file.read(1024 * 1024)  # 1 MB chunks
+            chunk = await file.read(1024 * 1024)  # 1 MB
             if not chunk:
                 break
 
@@ -118,28 +145,37 @@ async def upload_file(
                 )
 
             buffer.write(chunk)
+    await file.close()
 
-    # ---------- Save metadata ----------
-    db_upload = Upload(
+    print("UPLOAD SAVED TO:", file_path)
+
+    # ---------- Save metadata FIRST ----------
+    new_upload = Upload(
         user_id=current_user.id,
         filename=file.filename,
         file_size=total_size,
     )
-    db.add(db_upload)
+    db.add(new_upload)
     db.commit()
+    db.refresh(new_upload)
 
-    # ---------- Cleanup: keep latest 3 uploads ----------
+    # ---------- Cleanup: KEEP ONLY LATEST ----------
     uploads = (
         db.query(Upload)
         .filter(Upload.user_id == current_user.id)
-        .order_by(desc(Upload.uploaded_at))
+        .order_by(Upload.uploaded_at.desc())
         .all()
     )
 
-    for old in uploads[3:]:
+    # Keep uploads[0] (latest), delete rest
+    for old in uploads[1:]:
+        if old.filename == new_upload.filename:
+            continue
+
         old_file = user_dir / old.filename
         if old_file.exists():
             old_file.unlink()
+
         db.delete(old)
 
     db.commit()
@@ -150,44 +186,85 @@ async def upload_file(
         "size_bytes": total_size,
     }
 
-
 # ---------- DASHBOARD ----------
 @app.post("/generate-dashboard")
 def generate_dashboard(
     prompt: str = Form(...),
-    file_name: str = Form(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # 1️⃣ Fetch latest uploaded file from DB
+    latest_upload = (
+        db.query(Upload)
+        .filter(Upload.user_id == current_user.id)
+        .order_by(Upload.uploaded_at.desc())
+        .first()
+    )
+
+    if not latest_upload:
+        raise HTTPException(
+            status_code=400,
+            detail="No uploaded file found. Please upload a file first."
+        )
+    
+    file_name = latest_upload.filename
+
+    # 2️⃣ Build file path
     user_dir = UPLOAD_ROOT / f"user_{current_user.id}"
     file_path = user_dir / file_name
+    print("GENERATE DASHBOARD USER ID:", current_user.id)
+    print("LATEST UPLOAD USER ID:", latest_upload.user_id)
+    print("LOOKING FOR FILE AT:", file_path)
 
+    """if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Uploaded file not found on server"
+        )"""
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Uploaded file not found")
-
+        print("WARNING: file_path.exists() returned False, continuing anyway")
+   
+    # 3️⃣ Read file (extension logic intact ✅)
     try:
         if file_name.lower().endswith(".csv"):
             df = pd.read_csv(file_path)
-        else:
+        elif file_name.lower().endswith((".xls", ".xlsx")):
             df = pd.read_excel(file_path)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file format"
+            )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # 4️⃣ Build dashboard spec
+    chart_type = infer_chart_type(prompt)
+
     dashboard_spec = {
-        "dashboard_title": "Generated Dashboard",
-        "charts": [
+    "dashboard_title": "Generated Dashboard",
+    "charts": 
+        [
             {
-                "type": "bar",
-                "title": "Column Distribution",
-                "column": df.columns[0],
-                "aggregation": "count",
-                "filters": []
+            "id": "c1",
+            "type": chart_type,
+            "title": f"Distribution of Region",
+            "x": "Region",
+            "y": "__count__",
+            "style":{
+                    "color":"#2563eb"
+                }
             }
         ]
     }
 
-    preview_rows = df.head(5).to_dict(orient="records")
+    dashboard_spec = make_json_safe(dashboard_spec)
 
+    # 5️⃣ Preview rows
+    raw_preview = df.head(5).to_dict(orient="records")
+    preview_rows = make_json_safe(raw_preview)
+
+    # 6️⃣ Save / update dashboard
     existing_dashboard = (
         db.query(Dashboard)
         .filter(Dashboard.user_id == current_user.id)
@@ -198,13 +275,16 @@ def generate_dashboard(
         existing_dashboard.dashboard_spec = dashboard_spec
         existing_dashboard.preview_rows = preview_rows
     else:
-        db.add(Dashboard(
-            user_id=current_user.id,
-            dashboard_spec=dashboard_spec,
-            preview_rows=preview_rows
-        ))
+        db.add(
+            Dashboard(
+                user_id=current_user.id,
+                dashboard_spec=dashboard_spec,
+                preview_rows=preview_rows
+            )
+        )
 
     db.commit()
+
 
     return {"status": "success"}
 
