@@ -5,7 +5,6 @@
   "main": "main.js",
   "author": "Shekhar Pandey",
   "private": true,
-  
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^26.0.12"
@@ -25,5 +24,10 @@
       "icon": "'Frontend', 'build', BiSol.ico",
       "target": "nsis"
     }
+  },
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "dotenv": "^17.3.1",
+    "nodemailer": "^8.0.2"
   }
 }

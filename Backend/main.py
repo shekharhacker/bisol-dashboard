@@ -1,6 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, Form,Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form,Depends, HTTPException,status
 from auth.dependencies import get_current_user
-from models import User, Dashboard ,Upload
+from auth.schemas import ForgotPasswordRequest,ResetPasswordRequest
+from auth.hashing import hash_password
+from models import User, Dashboard ,Upload, PasswordResetToken
+from utils.security import generate_password_reset_token, hash_reset_token
+from utils.emails import send_reset_email
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from database import get_db
@@ -310,3 +314,75 @@ def get_dashboard_data(
         "dashboard_spec": dashboard.dashboard_spec,
         "preview_rows": dashboard.preview_rows
     }
+    
+#---------------------Forgot Password -----------------------
+@app.post("/forgot-password")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user:
+        raw_token, hashed_token, expires_at = generate_password_reset_token()
+
+        reset_entry = PasswordResetToken(
+            user_id=user.id,
+            token=hashed_token,
+            expires_at=expires_at
+        )
+
+        db.add(reset_entry)
+        db.commit()
+        
+        # Send email (best effort)
+        send_reset_email(
+            to_email=user.email,
+            token=raw_token
+        )
+
+    # ALWAYS return same response
+    return {
+        "message": "If the email exists, a reset link has been sent."
+    }
+    
+#---------------------RESET Password -----------------------
+@app.post("/reset-password")
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    hashed_token = hash_reset_token(payload.token)
+
+    reset_entry = (
+        db.query(PasswordResetToken)
+        .filter(
+            PasswordResetToken.token == hashed_token,
+            PasswordResetToken.used == False,
+            PasswordResetToken.expires_at > datetime.utcnow()
+        )
+        .first()
+    )
+
+    if not reset_entry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+
+    user = db.query(User).filter(User.id == reset_entry.user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token"
+        )
+
+    # 🔐 Update password
+    user.password_hash = hash_password(payload.new_password)
+
+    # 🔒 Invalidate token
+    reset_entry.used = True
+
+    db.commit()
+
+    return {"message": "Password reset successful"}

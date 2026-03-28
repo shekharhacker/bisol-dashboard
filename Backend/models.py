@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String , JSON , TIMESTAMP , ForeignKey ,BigInteger,DateTime,Text
+from sqlalchemy import Column, Integer, String , JSON , TIMESTAMP , ForeignKey ,BigInteger,DateTime,Text,Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base
@@ -40,3 +40,15 @@ class Upload(Base):
     filename = Column(String(255), nullable=False)
     file_size = Column(BigInteger, nullable=False)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    token = Column(String(255), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

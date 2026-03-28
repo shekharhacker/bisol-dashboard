@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 # -------- REGISTER --------
 class UserCreate(BaseModel):
@@ -19,3 +19,12 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+#--------FORGOT PASSWORD-----
+class ForgotPasswordRequest(BaseModel):
+     email: EmailStr
+
+#--------RESET PASSWORD-------
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=10)
+    new_password: str = Field(..., min_length=8)

@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate,Link } from "react-router-dom";
 
 import Splash from "./pages/Splash";
 import Login from "./pages/Login";
 import AccountCreation from "./pages/AccountCreation";
 import Home from "./pages/Home";
 import DashboardProvidingPage from "./pages/DashboardProvidingPage";
+import ForgotPassword from "./pages/ForgotPassword";
+import ForgotPasswordSent from "./pages/ForgotPasswordSent";
+import ResetPassword from "./pages/ResetPassword"
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -55,6 +58,13 @@ function App() {
 
         {/* ROOT */}
         <Route path="/" element={<Navigate to="/login" replace />} />
+
+        {/*FORGOT PASSWORD*/}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-password/sent" element={<ForgotPasswordSent />} />
+        
+        {/*RESET PASSWORD*/}
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate,Link } from "react-router-dom";
 import "../styles/Login.css";
 import logo from "../assests/Logo.png";
 
@@ -94,6 +94,10 @@ export default function Login({ setUser }) {
         <button type="submit" disabled={loading}>
           {loading ? "Logging in..." : "Login"}
         </button>
+
+        <div className="forgot-password">
+        <Link to="/forgot-password">Forgot password?</Link>
+        </div>
 
         <p className="note">
           Don’t have an account?{" "}
