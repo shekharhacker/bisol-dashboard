@@ -10,7 +10,8 @@ MAIL_PASS = os.getenv("MAIL_PASS")
 
 def send_reset_email(to_email: str, token: str):
     
-    reset_link = f"http://localhost:3000/reset-password?token={token}"
+    
+    reset_link = f"http://localhost:3000/reset-password/{token}"
     subject = "Password Reset Request"
     body = f"""
     Greetings this is a password reset request link from BiSol.Click on the link to reset password.

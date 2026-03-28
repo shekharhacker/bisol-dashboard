@@ -324,7 +324,8 @@ def forgot_password(
     user = db.query(User).filter(User.email == payload.email).first()
     if user:
         raw_token, hashed_token, expires_at = generate_password_reset_token()
-
+        print("Original raw token:", raw_token)
+        print("Stored hashed token:", hashed_token)
         reset_entry = PasswordResetToken(
             user_id=user.id,
             token=hashed_token,
@@ -352,7 +353,8 @@ def reset_password(
     db: Session = Depends(get_db)
 ):
     hashed_token = hash_reset_token(payload.token)
-
+    print("Received token:", payload.token)
+    print("Hashed received:", hash_reset_token(payload.token))
     reset_entry = (
         db.query(PasswordResetToken)
         .filter(
