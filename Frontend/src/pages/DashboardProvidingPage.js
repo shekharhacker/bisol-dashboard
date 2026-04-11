@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef  } from "react";
 import "../styles/DashboardProvidingPage.css";
 import ChartFactory from "../components/charts/ChartFactory";
 import logo from "../assests/Logo.png";
 import * as htmlToImage from "html-to-image";
 import jsPDF from "jspdf";
+import DataHealthReport from "../components/DataHealth/DataHealthReport.js";
 
 //--------------THEME STATES SETTINGS---------------
   const THEMES = {
@@ -45,6 +46,8 @@ import jsPDF from "jspdf";
 const DashboardProvidingPage = () => {
   // ---------------- REFS & STATE ----------------
   const dashboardRef = useRef(null);
+  const [dataHealth, setDataHealth] = useState(null);
+  const [showDataHealth, setShowDataHealth] = useState(false);
   const [canvasConfig, setCanvasConfig] = useState({
   width: "100%",
   height: "600px",
@@ -226,6 +229,55 @@ const DashboardProvidingPage = () => {
       }),
     }));
   };
+  //----------------Data Health-----------------
+  const generateDataHealth = () => {
+  if (!previewRows || previewRows.length === 0) return null;
+
+  const totalRows = previewRows.length;
+  const columns = Object.keys(previewRows[0]);
+
+  let totalMissing = 0;
+
+  const columnStats = columns.map((col) => {
+    let missing = 0;
+
+    previewRows.forEach((row) => {
+      const value = row[col];
+      if (value === null || value === undefined || value === "") {
+        missing++;
+      }
+    });
+
+    const percent = ((missing / totalRows) * 100).toFixed(1);
+    totalMissing += missing;
+
+    let status = "Good";
+    if (percent > 20) status = "Critical";
+    else if (percent > 5) status = "Moderate";
+
+    return {
+      column: col,
+      missing,
+      percent,
+      status,
+    };
+  });
+
+  const completeness = (
+    100 -
+    (totalMissing / (totalRows * columns.length)) * 100
+  ).toFixed(1);
+
+  return {
+    summary: {
+      rows: totalRows,
+      columns: columns.length,
+      missing: totalMissing,
+      completeness,
+    },
+    columns: columnStats,
+  };
+};
 
 
   // ---------------- UI STATES ----------------
@@ -293,6 +345,20 @@ const DashboardProvidingPage = () => {
       </button>
 
       <hr style={{ margin: "16px 0" }} />
+
+      {/* 🔴 DATA HEALTH REPORT BUTTON (NEW) */}
+      <h3>Insights</h3>
+      <button
+        className="btn"
+        onClick={() => {
+          const result = generateDataHealth();
+          setDataHealth(result);
+          setShowDataHealth(true);}}
+      >
+        Data Health Report
+      </button>
+      <hr style={{ margin: "16px 0" }} />
+
 
       {/* BACKGROUND */}
       <h3>Background</h3>
@@ -387,6 +453,12 @@ const DashboardProvidingPage = () => {
         As PDF
       </button>
     </aside>
+    {showDataHealth && dataHealth && (
+    <DataHealthReport
+      data={dataHealth}
+      onClose={() => setShowDataHealth(false)}
+    />
+    )}
   </div>
 
   {/* REGENERATE (FUTURE) */}

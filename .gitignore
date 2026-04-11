@@ -19,6 +19,7 @@ __pycache__/
 # ---------- Runtime Data ----------
 Backend/users.csv
 Backend/history.csv
+Backend/uploads
 
 # ---------- OS ----------
 .DS_Store

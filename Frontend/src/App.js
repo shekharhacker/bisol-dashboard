@@ -8,7 +8,8 @@ import Home from "./pages/Home";
 import DashboardProvidingPage from "./pages/DashboardProvidingPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ForgotPasswordSent from "./pages/ForgotPasswordSent";
-import ResetPassword from "./pages/ResetPassword"
+import ResetPassword from "./pages/ResetPassword";
+import DataHealthPage from "./pages/DataHealthPage";
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -65,6 +66,12 @@ function App() {
         
         {/*RESET PASSWORD*/}
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+        {/*Health Report for Data*/}
+        <Route
+          path="/data-health"
+          element={isLoggedIn ? <DataHealthPage /> : <Navigate to="/dashboard" replace />}
+        />
 
         {/* FALLBACK */}
         <Route path="*" element={<Navigate to="/" replace />} />
