@@ -97,6 +97,58 @@ const DashboardProvidingPage = () => {
       });
   }, []);
 
+  //---------------- Dashboard Regeneration (FIXED) --------------
+const handleRegenerate = async () => {
+  const token = localStorage.getItem("bisol_token");
+
+  if (!regenPrompt.trim()) {
+    alert("Please enter a prompt");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    const formData = new FormData();
+    formData.append("prompt", regenPrompt);
+
+    const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error("Failed to regenerate");
+
+    const data = await res.json();
+
+    console.log("NEW DATA:", data); // debug (keep for now)
+
+    // 🔴 IMPORTANT FIXES
+    setDashboardSpec(null); // clear old UI first
+
+    setTimeout(() => {
+      setDashboardSpec({ ...data.dashboard_spec }); // force new reference
+      setPreviewRows(data.preview_rows);
+
+      // update canvas too (you missed this earlier)
+      if (data.dashboard_spec.canvas) {
+        setCanvasConfig(data.dashboard_spec.canvas);
+      }
+    }, 50);
+
+    setRegenPrompt(""); // clear input
+    alert("Dashboard updated successfully");
+  } catch (err) {
+    console.error(err);
+    alert("Regeneration failed");
+  } finally {
+    setLoading(false);
+  }
+};
+
   //----------------- DASHBOARD SPEC PERSISTS------------
   const updateDashboardSpec = (newCanvasConfig) => {
   setCanvasConfig(newCanvasConfig);
@@ -230,11 +282,33 @@ const DashboardProvidingPage = () => {
     }));
   };
   //----------------Data Health-----------------
-  const generateDataHealth = () => {
-  if (!previewRows || previewRows.length === 0) return null;
+  useEffect(() => {
+  if (showDataHealth) {
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = "auto";
+  }
+
+  return () => {
+    document.body.style.overflow = "auto";
+  };
+}, [showDataHealth]);
+
+const generateDataHealth = () => {
+  if (!previewRows || previewRows.length === 0) {
+    return {
+      summary: {
+        rows: 0,
+        columns: 0,
+        missing: 0,
+        completeness: 0,
+      },
+      columns: [],
+    };
+  }
 
   const totalRows = previewRows.length;
-  const columns = Object.keys(previewRows[0]);
+  const columns = Object.keys(previewRows[0] || {});
 
   let totalMissing = 0;
 
@@ -242,13 +316,16 @@ const DashboardProvidingPage = () => {
     let missing = 0;
 
     previewRows.forEach((row) => {
-      const value = row[col];
+      const value = row?.[col];
       if (value === null || value === undefined || value === "") {
         missing++;
       }
     });
 
-    const percent = ((missing / totalRows) * 100).toFixed(1);
+    const percent = totalRows
+      ? ((missing / totalRows) * 100).toFixed(1)
+      : 0;
+
     totalMissing += missing;
 
     let status = "Good";
@@ -263,10 +340,13 @@ const DashboardProvidingPage = () => {
     };
   });
 
-  const completeness = (
-    100 -
-    (totalMissing / (totalRows * columns.length)) * 100
-  ).toFixed(1);
+  const completeness =
+    totalRows && columns.length
+      ? (
+          100 -
+          (totalMissing / (totalRows * columns.length)) * 100
+        ).toFixed(1)
+      : 0;
 
   return {
     summary: {
@@ -350,6 +430,7 @@ const DashboardProvidingPage = () => {
       <h3>Insights</h3>
       <button
         className="btn"
+        disabled={!previewRows.length}
         onClick={() => {
           const result = generateDataHealth();
           setDataHealth(result);
@@ -453,6 +534,7 @@ const DashboardProvidingPage = () => {
         As PDF
       </button>
     </aside>
+
     {showDataHealth && dataHealth && (
     <DataHealthReport
       data={dataHealth}
@@ -461,18 +543,31 @@ const DashboardProvidingPage = () => {
     )}
   </div>
 
-  {/* REGENERATE (FUTURE) */}
-  <div className="dashboard-regenerate">
-    <h3>Any changes required?</h3>
-    <textarea
-      value={regenPrompt}
-      onChange={(e) => setRegenPrompt(e.target.value)}
-      placeholder="Describe changes you want..."
-    />
-    <button className="btn primary">Regenerate Dashboard</button>
-  </div>
-</div>
+  {/* REGENERATE (ENHANCED) */}
+<div className="dashboard-regenerate">
+  <h3>Any changes required?</h3>
 
+  {loading && (
+  <div className="overlay-loading">
+    Generating new insights...
+  </div>
+)}
+
+  <textarea
+    value={regenPrompt}
+    onChange={(e) => setRegenPrompt(e.target.value)}
+    placeholder="Describe changes you want..."
+  />
+
+  <button 
+    className="btn primary" 
+    onClick={handleRegenerate}
+    disabled={loading}
+  >
+    {loading ? "Generating..." : "Regenerate Dashboard"}
+  </button>
+  </div>
+  </div>
   );
 };
 

@@ -1,167 +1,105 @@
-"""
-Main entry point for BiSol backend.
-
-Responsibilities:
-- Initialize FastAPI app
-- Configure middleware (CORS)
-- Register routers (authentication)
-- Handle core features:
-    - File upload & validation
-    - Dashboard generation
-    - Dashboard retrieval
-    - Password reset flow
-
-Note:
-This file currently contains both routing and business logic.
-For better scalability, heavy logic should be moved to service layers.
-"""
-# ---------- FASTAPI ----------
-from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-
-# ---------- DATABASE ----------
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
-from database import get_db
-
-# ---------- AUTH ----------
+from fastapi import FastAPI, UploadFile, File, Form,Depends, HTTPException,status
 from auth.dependencies import get_current_user
-from auth.schemas import ForgotPasswordRequest, ResetPasswordRequest
+from auth.schemas import ForgotPasswordRequest,ResetPasswordRequest
 from auth.hashing import hash_password
-from auth.routes import router as auth_router
-
-# ---------- MODELS ----------
-from models.models import User, Dashboard, Upload, PasswordResetToken
-
-# ---------- UTILITIES ----------
-from utils.security import generate_password_reset_token, hash_reset_token,validate_password
+from Models.models import User, Dashboard ,Upload, PasswordResetToken
+from utils.security import generate_password_reset_token, hash_reset_token
 from utils.emails import send_reset_email
-
-# ---------- STANDARD LIB ----------
+from sqlalchemy import desc
+from sqlalchemy.orm import Session
+from database import get_db
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
 import os
 import json
 
-# ---------- FILE UPLOAD CONFIGURATION ----------
-"""
-Defines constraints for uploaded files to ensure:
-- Security (no malicious file types)
-- Controlled resource usage (file size limit)
-"""
+#------------UPLOADS SECURITY VALIDS-----------
+Max_File_Size=10*1024*1024
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
-ALLOWED_EXTENSIONS={".csv", ".xls", ".xlsx"}
+Allowed_extensions={".csv",".xls",".xlsx"}
 
 ALLOWED_MIME_TYPES = {
     "text/csv",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
+# ---------- IMPORT AUTH ROUTER ----------
+from auth.routes import router as auth_router
 
-# ---------- FASTAPI APP ----------
+# ---------- APP ----------
 app = FastAPI(title="BiSol Backend")
 
-# ---------- CORS MIDDLEWARE ----------
-"""
-Allows frontend (possibly on different domain/port)
-to communicate with backend APIs.
-"""
+# ---------- CORS ----------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: restrict in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------- ROUTER REGISTRATION ----------
+# ---------- REGISTER AUTH ----------
 app.include_router(auth_router, tags=["Authentication"])
 
-# ---------- PATH SETUP ----------
-"""
-Handles file storage paths dynamically.
-Each user gets an isolated upload directory.
-"""
-
+# ---------- PATHS ----------
 BASE_DIR = Path(__file__).resolve().parent
-
 UPLOAD_ROOT = BASE_DIR / "uploads"
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+"""UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)"""
+
 HISTORY_FILE = BASE_DIR / "history.csv"
 
-# ---------- HELPER FUNCTIONS ----------
-
+# ---------- HELPERS ----------
 def save_history(user_email: str, prompt: str, file_name: str):
-    """
-    Stores user dashboard generation history in CSV.
-
-    Creates file with headers if it doesn't exist.
-    """
     new_file = not HISTORY_FILE.exists()
-
     with HISTORY_FILE.open("a", newline="") as f:
         import csv
         writer = csv.writer(f)
-
         if new_file:
             writer.writerow(["user_email", "prompt", "file_name", "timestamp"])
-
         writer.writerow([user_email, prompt, file_name, datetime.now().isoformat()])
 
 
 def get_history(user_email: str):
-    """
-    Retrieves dashboard history for a specific user.
-    """
     if not HISTORY_FILE.exists():
         return []
-
     df = pd.read_csv(HISTORY_FILE)
     return df[df["user_email"] == user_email].to_dict(orient="records")
 
-
 def make_json_safe(obj):
     """
-    Converts Pandas/Datetime objects into JSON-serializable format.
-    Prevents serialization errors in API responses.
+    Recursively convert Pandas / NumPy objects to JSON-serializable types
     """
     if isinstance(obj, dict):
         return {k: make_json_safe(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [make_json_safe(v) for v in obj]
-    elif hasattr(obj, "isoformat"):
+    elif hasattr(obj, "isoformat"):  # handles pandas.Timestamp & datetime
         return obj.isoformat()
-    return obj
-
+    else:
+        return obj
 
 def infer_chart_type(prompt: str) -> str:
-    """
-    Infers chart type based on user prompt keywords.
-
-    Returns:
-        - 'pie' for distribution-related queries
-        - 'line' for trends
-        - default 'bar'
-    """
     p = prompt.lower()
-    
+
+    # Pie chart indicators
     if any(word in p for word in ["share", "percentage", "ratio", "contribution"]):
         return "pie"
-    
+
+    # Line chart indicators (future-ready)
     if any(word in p for word in ["trend", "over time", "timeline", "growth"]):
         return "line"
-    
+
+    # Default
     return "bar"
 
-# ---------- HEALTH CHECK ----------
+
+# ---------- HEALTH ----------
 @app.get("/")
 def root():
-    """
-    Basic endpoint to verify backend is running.
-    """
     return {"status": "BiSol backend running"}
 
 
@@ -172,48 +110,50 @@ async def upload_file(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    Handles secure file upload.
-
-    Flow:
-    1. Validate extension & MIME type
-    2. Store file in user-specific directory
-    3. Enforce file size limit (stream-safe)
-    4. Save metadata in DB
-    5. Keep only latest uploaded file
-    """
-
-    # --- Validate extension ---
+    # ---------- Extension validation ----------
     ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Invalid file type")
+    if ext not in Allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Only CSV and Excel files are allowed."
+        )
 
-    # --- Validate MIME ---
+    # ---------- MIME type validation ----------
     if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid MIME type")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid MIME type for uploaded file."
+        )
 
-    # --- Create user folder ---
+    # ---------- User directory ----------
     user_dir = UPLOAD_ROOT / f"user_{current_user.id}"
     user_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = user_dir / file.filename
 
-    # --- Stream-safe write ---
+    # ---------- Stream-safe file write ----------
     total_size = 0
     with open(file_path, "wb") as buffer:
-        while chunk := await file.read(1024 * 1024):
-            total_size += len(chunk)
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB
+            if not chunk:
+                break
 
-            if total_size > MAX_FILE_SIZE:
+            total_size += len(chunk)
+            if total_size > Max_File_Size:
                 buffer.close()
                 file_path.unlink(missing_ok=True)
-                raise HTTPException(status_code=400, detail="File too large")
+                raise HTTPException(
+                    status_code=400,
+                    detail="File too large. Maximum allowed size is 10 MB."
+                )
 
             buffer.write(chunk)
-
     await file.close()
 
-    # --- Save metadata ---
+    print("UPLOAD SAVED TO:", file_path)
+
+    # ---------- Save metadata FIRST ----------
     new_upload = Upload(
         user_id=current_user.id,
         filename=file.filename,
@@ -223,19 +163,17 @@ async def upload_file(
     db.commit()
     db.refresh(new_upload)
 
-    # --- Keep only latest file ---
+    # ---------- Cleanup: KEEP ONLY LATEST ----------
     uploads = (
         db.query(Upload)
         .filter(Upload.user_id == current_user.id)
         .order_by(Upload.uploaded_at.desc())
         .all()
     )
-    
+
+    # Keep uploads[0] (latest), delete rest
     for old in uploads[1:]:
-        # If an older DB record has the same filename, delete only the DB row
-        # and keep the current physical file.
         if old.filename == new_upload.filename:
-            db.delete(old)
             continue
 
         old_file = user_dir / old.filename
@@ -243,7 +181,7 @@ async def upload_file(
             old_file.unlink()
 
         db.delete(old)
-    
+
     db.commit()
 
     return {
@@ -252,25 +190,15 @@ async def upload_file(
         "size_bytes": total_size,
     }
 
-# ---------- GENERATE DASHBOARD ----------
+# ---------- DASHBOARD ----------
 @app.post("/generate-dashboard")
 def generate_dashboard(
     prompt: str = Form(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Generates dashboard configuration based on uploaded dataset.
-
-    Flow:
-    1. Fetch latest uploaded file
-    2. Load dataset (CSV/Excel)
-    3. Infer chart type
-    4. Generate dashboard spec
-    5. Store in DB
-    """
-
-    # --- Fetch latest upload ---
+    
+    # 1️⃣ Fetch latest uploaded file from DB
     latest_upload = (
         db.query(Upload)
         .filter(Upload.user_id == current_user.id)
@@ -279,62 +207,92 @@ def generate_dashboard(
     )
 
     if not latest_upload:
-        raise HTTPException(status_code=400, detail="Upload file first")
-
-    # --- Read dataset ---
-    file_path = UPLOAD_ROOT / f"user_{current_user.id}" / latest_upload.filename
+        raise HTTPException(
+            status_code=400,
+            detail="No uploaded file found. Please upload a file first."
+        )
     
-    if not file_path.exists():
+    file_name = latest_upload.filename
+
+    # 2️⃣ Build file path
+    user_dir = UPLOAD_ROOT / f"user_{current_user.id}"
+    file_path = user_dir / file_name
+
+    """if not file_path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Uploaded file not found on server"
-        )
-
+            detail="Uploaded file not found on server"
+        )"""
+    if not file_path.exists():
+        print("WARNING: file_path.exists() returned False, continuing anyway")
+   
+    # 3️⃣ Read file (extension logic intact ✅)
     try:
-        if latest_upload.filename.endswith(".csv"):
+        if file_name.lower().endswith(".csv"):
             df = pd.read_csv(file_path)
-        else:
+        elif file_name.lower().endswith((".xls", ".xlsx")):
             df = pd.read_excel(file_path)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file format"
+            )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # --- Generate dashboard ---
+    # 4️⃣ Build dashboard spec
     chart_type = infer_chart_type(prompt)
 
     dashboard_spec = {
-        "dashboard_title": "Generated Dashboard",
-        "charts": [{
+    "dashboard_title": "Generated Dashboard",
+    "charts": 
+        [
+            {
             "id": "c1",
             "type": chart_type,
-            "title": "Distribution of Region",
+            "title": f"Distribution of Region",
             "x": "Region",
             "y": "__count__",
-        }]
+            "style":{
+                    "color":"#2563eb"
+                }
+            }
+        ]
     }
 
     dashboard_spec = make_json_safe(dashboard_spec)
-    preview_rows = make_json_safe(df.head(5).to_dict(orient="records"))
 
-    # --- Save in DB ---
-    existing = db.query(Dashboard).filter(Dashboard.user_id == current_user.id).first()
+    # 5️⃣ Preview rows
+    raw_preview = df.head(5).to_dict(orient="records")
+    preview_rows = make_json_safe(raw_preview)
 
-    if existing:
-        existing.dashboard_spec = dashboard_spec
-        existing.preview_rows = preview_rows
+    # 6️⃣ Save / update dashboard
+    existing_dashboard = (
+        db.query(Dashboard)
+        .filter(Dashboard.user_id == current_user.id)
+        .first()
+    )
+
+    if existing_dashboard:
+        existing_dashboard.dashboard_spec = dashboard_spec
+        existing_dashboard.preview_rows = preview_rows
     else:
-        db.add(Dashboard(
-            user_id=current_user.id,
-            dashboard_spec=dashboard_spec,
-            preview_rows=preview_rows
-        ))
+        db.add(
+            Dashboard(
+                user_id=current_user.id,
+                dashboard_spec=dashboard_spec,
+                preview_rows=preview_rows
+            )
+        )
 
     db.commit()
 
+
     return {
-        "status": "success",
-        "dashboard_spec": dashboard_spec,
-        "preview_rows": preview_rows
-    }
+    "status": "success",
+    "dashboard_spec": dashboard_spec,
+    "preview_rows": preview_rows
+}
 
 #---------Dashboard data-----------
 @app.get("/dashboard-data")
@@ -359,33 +317,37 @@ def get_dashboard_data(
         "preview_rows": dashboard.preview_rows
     }
     
-# ---------- FORGOT PASSWORD ----------
+#---------------------Forgot Password -----------------------
 @app.post("/forgot-password")
-def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """
-    Initiates password reset flow.
-
-    - Generates token
-    - Stores hashed token
-    - Sends email (if user exists)
-    """
-
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
     user = db.query(User).filter(User.email == payload.email).first()
-
     if user:
         raw_token, hashed_token, expires_at = generate_password_reset_token()
-
-        db.add(PasswordResetToken(
+        print("Original raw token:", raw_token)
+        print("Stored hashed token:", hashed_token)
+        reset_entry = PasswordResetToken(
             user_id=user.id,
             token=hashed_token,
             expires_at=expires_at
-        ))
+        )
+
+        db.add(reset_entry)
         db.commit()
+        
+        # Send email (best effort)
+        send_reset_email(
+            to_email=user.email,
+            token=raw_token
+        )
 
-        send_reset_email(to_email=user.email, token=raw_token)
-
-    return {"message": "If the email exists, a reset link has been sent."}
-
+    # ALWAYS return same response
+    return {
+        "message": "If the email exists, a reset link has been sent."
+    }
+    
 #---------------------RESET Password -----------------------
 @app.post("/reset-password")
 def reset_password(
@@ -393,6 +355,8 @@ def reset_password(
     db: Session = Depends(get_db)
 ):
     hashed_token = hash_reset_token(payload.token)
+    print("Received token:", payload.token)
+    print("Hashed received:", hash_reset_token(payload.token))
     reset_entry = (
         db.query(PasswordResetToken)
         .filter(
@@ -415,14 +379,6 @@ def reset_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid reset token"
-        )
-        
-    try:
-        validate_password(payload.new_password)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
         )
 
     # 🔐 Update password

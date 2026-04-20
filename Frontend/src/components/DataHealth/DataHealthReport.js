@@ -1,4 +1,5 @@
 import React from "react";
+import "./DataHealthReport.css"
 
 const getStatusClass = (status) => {
   if (status === "Good") return "status-good";
@@ -8,7 +9,17 @@ const getStatusClass = (status) => {
 };
 
 const DataHealthReport = ({ data, onClose }) => {
-  if (!data) return null;
+  if (!data || !data.columns) {
+  return (
+    <div className="dh-overlay">
+      <div className="dh-panel">
+        <h2>No Data Available</h2>
+        <p>Upload valid dataset to view data health.</p>
+        <button onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="dh-overlay">
