@@ -156,6 +156,82 @@ def infer_chart_type(prompt: str) -> str:
     
     return "bar"
 
+def normalize_text(text: str) -> str:
+    """
+    Normalizes text for easier matching.
+
+    Converts to lowercase and removes spaces/underscores.
+    """
+    return str(text).strip().lower().replace(" ", "").replace("_", "")
+
+
+def infer_chart_spec(prompt: str, df: pd.DataFrame) -> dict:
+    """
+    Dynamically infers chart specification from prompt and dataset columns.
+
+    Flow:
+    1. Normalize prompt and dataframe columns
+    2. Detect matching columns mentioned in prompt
+    3. Choose x-axis and y-axis dynamically
+    4. Use count if no numeric column is identified
+    5. Return chart specification
+    """
+
+    prompt_words = prompt.lower().replace("_", " ").split()
+    columns = list(df.columns)
+
+    normalized_column_map = {
+        normalize_text(col): col for col in columns
+    }
+
+    matched_columns = []
+    for word in prompt_words:
+        normalized_word = normalize_text(word)
+        for norm_col, original_col in normalized_column_map.items():
+            if normalized_word in norm_col or norm_col in normalized_word:
+                if original_col not in matched_columns:
+                    matched_columns.append(original_col)
+
+    numeric_columns = df.select_dtypes(include="number").columns.tolist()
+    categorical_columns = [col for col in columns if col not in numeric_columns]
+
+    x_col = None
+    y_col = None
+
+    # Prefer first categorical column match as x-axis
+    for col in matched_columns:
+        if col in categorical_columns:
+            x_col = col
+            break
+
+    # Prefer first numeric column match as y-axis
+    for col in matched_columns:
+        if col in numeric_columns:
+            y_col = col
+            break
+
+    # If prompt has only numeric column, choose a default categorical x
+    if not x_col and categorical_columns:
+        x_col = categorical_columns[0]
+
+    # If no numeric column matched, fallback to count
+    if not y_col:
+        y_col = "__count__"
+
+    title = (
+        f"{y_col if y_col != '__count__' else 'Count'} by {x_col}"
+        if x_col else
+        "Generated Chart"
+    )
+
+    return {
+        "id": "c1",
+        "type": infer_chart_type(prompt),
+        "title": title,
+        "x": x_col,
+        "y": y_col,
+    }
+
 # ---------- HEALTH CHECK ----------
 @app.get("/")
 def root():
@@ -299,21 +375,55 @@ def generate_dashboard(
         raise HTTPException(status_code=400, detail=str(e))
 
     # --- Generate dashboard ---
-    chart_type = infer_chart_type(prompt)
+    chart_spec = infer_chart_spec(prompt, df)
 
     dashboard_spec = {
         "dashboard_title": "Generated Dashboard",
-        "charts": [{
-            "id": "c1",
-            "type": chart_type,
-            "title": "Distribution of Region",
-            "x": "Region",
-            "y": "__count__",
-        }]
+        "charts": [chart_spec]
     }
 
     dashboard_spec = make_json_safe(dashboard_spec)
     preview_rows = make_json_safe(df.head(5).to_dict(orient="records"))
+    
+        # --- Build data health report from full dataset ---
+    total_rows = int(df.shape[0])
+    total_columns = int(df.shape[1])
+    total_missing = int(df.isnull().sum().sum())
+
+    completeness = 0.0
+    if total_rows > 0 and total_columns > 0:
+        completeness = round(
+            ((total_rows * total_columns - total_missing) / (total_rows * total_columns)) * 100,
+            1
+        )
+
+    column_analysis = []
+    for col in df.columns:
+        missing = int(df[col].isnull().sum())
+        percent = round((missing / total_rows) * 100, 1) if total_rows > 0 else 0.0
+
+        status = "Good"
+        if percent > 20:
+            status = "Critical"
+        elif percent > 5:
+            status = "Moderate"
+
+        column_analysis.append({
+            "column": str(col),
+            "missing": missing,
+            "percent": percent,
+            "status": status,
+        })
+
+    data_health = {
+        "summary": {
+            "rows": total_rows,
+            "columns": total_columns,
+            "missing": total_missing,
+            "completeness": completeness,
+        },
+        "columns": column_analysis,
+    }
 
     # --- Save in DB ---
     existing = db.query(Dashboard).filter(Dashboard.user_id == current_user.id).first()
@@ -321,11 +431,13 @@ def generate_dashboard(
     if existing:
         existing.dashboard_spec = dashboard_spec
         existing.preview_rows = preview_rows
+        existing.data_health = data_health
     else:
         db.add(Dashboard(
             user_id=current_user.id,
             dashboard_spec=dashboard_spec,
-            preview_rows=preview_rows
+            preview_rows=preview_rows,
+            data_health=data_health
         ))
 
     db.commit()
@@ -333,7 +445,8 @@ def generate_dashboard(
     return {
         "status": "success",
         "dashboard_spec": dashboard_spec,
-        "preview_rows": preview_rows
+        "preview_rows": preview_rows,
+        "data_health": data_health,
     }
 
 #---------Dashboard data-----------
@@ -356,7 +469,8 @@ def get_dashboard_data(
 
     return {
         "dashboard_spec": dashboard.dashboard_spec,
-        "preview_rows": dashboard.preview_rows
+        "preview_rows": dashboard.preview_rows,
+        "data_health": dashboard.data_health,
     }
     
 # ---------- FORGOT PASSWORD ----------

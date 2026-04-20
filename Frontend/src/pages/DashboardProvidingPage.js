@@ -84,21 +84,22 @@ const DashboardProvidingPage = () => {
         return res.json();
       })
       .then((data) => {
-        const spec = data.dashboard_spec;
+  const spec = data.dashboard_spec;
 
-        setDashboardSpec(spec);
-        setPreviewRows(data.preview_rows);
+  setDashboardSpec(spec);
+  setPreviewRows(data.preview_rows);
+  setDataHealth(data.data_health);
 
-        if (spec.canvas) {
-          setCanvasConfig(spec.canvas);
-        }
+  if (spec.canvas) {
+    setCanvasConfig(spec.canvas);
+  }
 
-        setLoading(false);
-      });
+  setLoading(false);
+  });
   }, []);
 
   //---------------- Dashboard Regeneration (FIXED) --------------
-const handleRegenerate = async () => {
+  const handleRegenerate = async () => {
   const token = localStorage.getItem("bisol_token");
 
   if (!regenPrompt.trim()) {
@@ -124,22 +125,21 @@ const handleRegenerate = async () => {
 
     const data = await res.json();
 
-    console.log("NEW DATA:", data); // debug (keep for now)
+    console.log("NEW DATA:", data);
 
-    // 🔴 IMPORTANT FIXES
-    setDashboardSpec(null); // clear old UI first
+    setDashboardSpec(null);
 
     setTimeout(() => {
-      setDashboardSpec({ ...data.dashboard_spec }); // force new reference
+      setDashboardSpec({ ...data.dashboard_spec });
       setPreviewRows(data.preview_rows);
+      setDataHealth(data.data_health);
 
-      // update canvas too (you missed this earlier)
       if (data.dashboard_spec.canvas) {
         setCanvasConfig(data.dashboard_spec.canvas);
       }
     }, 50);
 
-    setRegenPrompt(""); // clear input
+    setRegenPrompt("");
     alert("Dashboard updated successfully");
   } catch (err) {
     console.error(err);
@@ -282,7 +282,8 @@ const handleRegenerate = async () => {
     }));
   };
   //----------------Data Health-----------------
-  useEffect(() => {
+  
+useEffect(() => {
   if (showDataHealth) {
     document.body.style.overflow = "hidden";
   } else {
@@ -293,72 +294,6 @@ const handleRegenerate = async () => {
     document.body.style.overflow = "auto";
   };
 }, [showDataHealth]);
-
-const generateDataHealth = () => {
-  if (!previewRows || previewRows.length === 0) {
-    return {
-      summary: {
-        rows: 0,
-        columns: 0,
-        missing: 0,
-        completeness: 0,
-      },
-      columns: [],
-    };
-  }
-
-  const totalRows = previewRows.length;
-  const columns = Object.keys(previewRows[0] || {});
-
-  let totalMissing = 0;
-
-  const columnStats = columns.map((col) => {
-    let missing = 0;
-
-    previewRows.forEach((row) => {
-      const value = row?.[col];
-      if (value === null || value === undefined || value === "") {
-        missing++;
-      }
-    });
-
-    const percent = totalRows
-      ? ((missing / totalRows) * 100).toFixed(1)
-      : 0;
-
-    totalMissing += missing;
-
-    let status = "Good";
-    if (percent > 20) status = "Critical";
-    else if (percent > 5) status = "Moderate";
-
-    return {
-      column: col,
-      missing,
-      percent,
-      status,
-    };
-  });
-
-  const completeness =
-    totalRows && columns.length
-      ? (
-          100 -
-          (totalMissing / (totalRows * columns.length)) * 100
-        ).toFixed(1)
-      : 0;
-
-  return {
-    summary: {
-      rows: totalRows,
-      columns: columns.length,
-      missing: totalMissing,
-      completeness,
-    },
-    columns: columnStats,
-  };
-};
-
 
   // ---------------- UI STATES ----------------
   if (loading) {
@@ -427,17 +362,19 @@ const generateDataHealth = () => {
       <hr style={{ margin: "16px 0" }} />
 
       {/* 🔴 DATA HEALTH REPORT BUTTON (NEW) */}
-      <h3>Insights</h3>
       <button
-        className="btn"
-        disabled={!previewRows.length}
-        onClick={() => {
-          const result = generateDataHealth();
-          setDataHealth(result);
-          setShowDataHealth(true);}}
-      >
-        Data Health Report
-      </button>
+      className="btn"
+      disabled={!previewRows.length}
+      onClick={() => {
+        if (!dataHealth) {
+          alert("Data health not available yet. Regenerate dashboard first.");
+          return;
+        }
+      setShowDataHealth(true);
+      }}
+    >
+    Data Health Report
+    </button>
       <hr style={{ margin: "16px 0" }} />
 
 

@@ -68,6 +68,7 @@ class Dashboard(Base):
 
     dashboard_spec = Column(JSON, nullable=False)
     preview_rows = Column(JSON, nullable=False)
+    data_health = Column(JSON, nullable=True)
 
     prompt = Column(Text)
     background_color = Column(String(20), default="#ffffff")
@@ -79,7 +80,6 @@ class Dashboard(Base):
         onupdate=func.now()
     )
 
-    # --- Relationship to User ---
     user = relationship("User", backref="dashboards")
 
 
