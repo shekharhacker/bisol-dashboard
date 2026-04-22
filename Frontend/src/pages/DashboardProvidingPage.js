@@ -22,7 +22,7 @@ import logo from "../assests/Logo.png";
 import * as htmlToImage from "html-to-image";
 import jsPDF from "jspdf";
 import DataHealthReport from "../components/DataHealth/DataHealthReport.js";
-
+const API_URL = import.meta.env.VITE_API_URL;
 
 // ---------- THEME CONFIGURATION ----------
 /**
@@ -107,7 +107,7 @@ const DashboardProvidingPage = () => {
       return;
     }
 
-    fetch("http://127.0.0.1:8000/dashboard-data", {
+    fetch("${API_URL}/dashboard-data", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -165,7 +165,7 @@ const DashboardProvidingPage = () => {
       const formData = new FormData();
       formData.append("prompt", regenPrompt);
 
-      const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
+      const res = await fetch("${API_URL}/generate-dashboard", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

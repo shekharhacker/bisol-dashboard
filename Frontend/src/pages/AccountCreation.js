@@ -17,6 +17,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/AccountCreation.css";
 import logo from "../assests/Logo.png";
+const API_URL = import.meta.env.VITE_API_URL;
 
 
 // ---------- ACCOUNT CREATION COMPONENT ----------
@@ -108,7 +109,7 @@ export default function AccountCreation() {
       /**
       Sends registration request to backend authentication service.
       */
-      const res = await fetch("http://127.0.0.1:8000/auth/register", {
+      const res = await fetch("${API_URL}/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

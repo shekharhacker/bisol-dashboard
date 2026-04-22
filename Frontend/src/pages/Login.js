@@ -17,6 +17,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "../styles/Login.css";
 import logo from "../assests/Logo.png";
+const API_URL = import.meta.env.VITE_API_URL;
 
 
 // ---------- LOGIN COMPONENT ----------
@@ -84,7 +85,7 @@ export default function Login({ setUser }) {
     try {
 
       // ---------- AUTHENTICATION API REQUEST ----------
-      const res = await fetch("http://127.0.0.1:8000/auth/login", {
+      const res = await fetch("${API_URL}/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

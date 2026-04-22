@@ -15,6 +15,7 @@ by collecting the user's registered email address.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/ForgotPassword.css";
+const API_URL = import.meta.env.VITE_API_URL;
 
 
 // ---------- COMPONENT ----------
@@ -53,7 +54,7 @@ function ForgotPassword() {
     try {
 
       // ---------- API REQUEST ----------
-      const res = await fetch("http://localhost:8000/forgot-password", {
+      const res = await fetch("${API_URL}/forgot-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -17,6 +17,7 @@ after the user clicks the reset link from email.
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "../styles/ResetPassword.css";
+const API_URL = import.meta.env.VITE_API_URL;
 
 
 // ---------- COMPONENT ----------
@@ -139,7 +140,7 @@ export default function ResetPassword() {
     try {
 
       // ---------- RESET PASSWORD API ----------
-      const res = await fetch("http://127.0.0.1:8000/reset-password", {
+      const res = await fetch("${API_URL}/reset-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

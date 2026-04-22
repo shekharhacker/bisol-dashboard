@@ -18,6 +18,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/Home.css";
 import logo from "../assests/Logo.png";
+const API_URL = import.meta.env.VITE_API_URL;
 
 
 // ---------- COMPONENT ----------
@@ -79,7 +80,7 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("http://127.0.0.1:8000/upload-file", {
+      const res = await fetch("${API_URL}/upload-file", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -134,7 +135,7 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
+      const res = await fetch("${API_URL}/generate-dashboard", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
