@@ -69,6 +69,12 @@ app = FastAPI(title="BiSol Backend")
 Allows frontend (possibly on different domain/port)
 to communicate with backend APIs.
 """
+origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://bisol-dashboard.vercel.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # TODO: restrict in production
@@ -232,6 +238,65 @@ def infer_chart_spec(prompt: str, df: pd.DataFrame) -> dict:
         "y": y_col,
     }
 
+def build_chart_data(df: pd.DataFrame, chart_spec: dict):
+    """
+    Builds chart data from the full dataset based on chart specification.
+
+    Supports:
+    - count aggregation
+    - sum aggregation for numeric columns
+    """
+
+    x_col = chart_spec.get("x")
+    y_col = chart_spec.get("y")
+
+    if not x_col or x_col not in df.columns:
+        return []
+
+    # Count-based chart
+    if y_col == "__count__":
+        # Choose aggregation intelligently
+        agg_func = "sum"
+
+        y_lower = y_col.lower()
+
+        if "discount" in y_lower or "rate" in y_lower or "percentage" in y_lower:
+            agg_func = "mean"
+
+        grouped = (
+            df.groupby(x_col)[y_col]
+            .agg(agg_func)
+            .reset_index()
+        )
+        return [
+            {"label": str(row[x_col]), "value": int(row["value"])}
+            for _, row in grouped.iterrows()
+        ]
+
+    # Numeric aggregation
+    if y_col in df.columns:
+        # Choose aggregation intelligently
+        agg_func = "sum"
+
+        y_lower = y_col.lower()
+
+        if "discount" in y_lower or "rate" in y_lower or "percentage" in y_lower:
+            agg_func = "mean"
+
+        grouped = (
+            df.groupby(x_col)[y_col]
+            .agg(agg_func)
+            .reset_index()
+        )
+        return [
+            {
+                "label": str(row[x_col]),
+                "value": float(row[y_col]) if pd.notnull(row[y_col]) else 0
+            }
+            for _, row in grouped.iterrows()
+        ]
+
+    return []
 # ---------- HEALTH CHECK ----------
 @app.get("/")
 def root():
@@ -376,10 +441,17 @@ def generate_dashboard(
 
     # --- Generate dashboard ---
     chart_spec = infer_chart_spec(prompt, df)
-
+    
+    chart_data = build_chart_data(df, chart_spec)
+    
     dashboard_spec = {
         "dashboard_title": "Generated Dashboard",
-        "charts": [chart_spec]
+    "charts": [
+        {
+            **chart_spec,
+            "data": chart_data
+        }
+    ]
     }
 
     dashboard_spec = make_json_safe(dashboard_spec)
