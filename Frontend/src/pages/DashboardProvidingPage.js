@@ -22,7 +22,7 @@ import logo from "../assests/Logo.png";
 import * as htmlToImage from "html-to-image";
 import jsPDF from "jspdf";
 import DataHealthReport from "../components/DataHealth/DataHealthReport.js";
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = process.env.REACT_APP_API_URL;
 
 // ---------- THEME CONFIGURATION ----------
 /**

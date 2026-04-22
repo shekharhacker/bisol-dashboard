@@ -17,8 +17,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import "../styles/Login.css";
 import logo from "../assests/Logo.png";
-const API_URL = import.meta.env.VITE_API_URL;
-
+const API_URL = process.env.REACT_APP_API_URL;
 
 // ---------- LOGIN COMPONENT ----------
 /**

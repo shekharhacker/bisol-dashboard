@@ -17,7 +17,7 @@ after the user clicks the reset link from email.
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "../styles/ResetPassword.css";
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = process.env.REACT_APP_API_URL;
 
 
 // ---------- COMPONENT ----------

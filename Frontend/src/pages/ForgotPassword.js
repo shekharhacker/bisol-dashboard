@@ -15,7 +15,7 @@ by collecting the user's registered email address.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/ForgotPassword.css";
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = process.env.REACT_APP_API_URL;
 
 
 // ---------- COMPONENT ----------
