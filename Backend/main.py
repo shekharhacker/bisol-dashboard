@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # ---------- DATABASE ----------
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from database import get_db
+from database import get_db,Base,engine
 
 # ---------- AUTH ----------
 from auth.dependencies import get_current_user
@@ -43,6 +43,7 @@ import pandas as pd
 from datetime import datetime
 import os
 import json
+Base.metadata.create_all(bind=engine)
 
 # ---------- FILE UPLOAD CONFIGURATION ----------
 """
