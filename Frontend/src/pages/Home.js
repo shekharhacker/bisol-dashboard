@@ -80,7 +80,7 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("${API_URL}/upload-file", {
+      const res = await fetch(`${API_URL}/upload-file`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -135,7 +135,7 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("${API_URL}/generate-dashboard", {
+      const res = await fetch(`${API_URL}/generate-dashboard`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

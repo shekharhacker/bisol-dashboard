@@ -107,7 +107,7 @@ const DashboardProvidingPage = () => {
       return;
     }
 
-    fetch("${API_URL}/dashboard-data", {
+    fetch(`${API_URL}/dashboard-data`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -165,7 +165,7 @@ const DashboardProvidingPage = () => {
       const formData = new FormData();
       formData.append("prompt", regenPrompt);
 
-      const res = await fetch("${API_URL}/generate-dashboard", {
+      const res = await fetch(`${API_URL}/generate-dashboard`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
