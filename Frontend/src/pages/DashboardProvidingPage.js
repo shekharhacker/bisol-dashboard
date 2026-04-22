@@ -1,4 +1,21 @@
-import React, { useEffect, useState, useRef  } from "react";
+/**
+Dashboard Providing Page component.
+
+Responsibilities:
+- Fetch dashboard specification and dataset preview from backend
+- Render dynamic charts using ChartFactory
+- Provide theme controls and canvas configuration
+- Allow exporting dashboard as PNG or PDF
+- Display dataset health report
+- Support dashboard regeneration using natural language prompts
+
+This component acts as the main analytics workspace
+where users interact with generated dashboards.
+*/
+
+
+// ---------- IMPORTS ----------
+import React, { useEffect, useState, useRef } from "react";
 import "../styles/DashboardProvidingPage.css";
 import ChartFactory from "../components/charts/ChartFactory";
 import logo from "../assests/Logo.png";
@@ -6,60 +23,83 @@ import * as htmlToImage from "html-to-image";
 import jsPDF from "jspdf";
 import DataHealthReport from "../components/DataHealth/DataHealthReport.js";
 
-//--------------THEME STATES SETTINGS---------------
-  const THEMES = {
-    light: {
-      canvas: {
-        backgroundColor: "#ffffff",
-      },
-      chart: {
-        bar: "#2563eb",
-        line: "#2563eb",
-        pie: ["#2563eb", "#22c55e", "#f59e0b", "#ef4444"],
-      },
+
+// ---------- THEME CONFIGURATION ----------
+/**
+Defines predefined dashboard themes.
+
+Each theme controls:
+- Canvas background color
+- Chart color palette
+*/
+const THEMES = {
+  light: {
+    canvas: {
+      backgroundColor: "#ffffff",
     },
-
-    dark: {
-      canvas: {
-        backgroundColor: "#111827",
-      },
-      chart: {
-        bar: "#38bdf8",
-        line: "#38bdf8",
-        pie: ["#38bdf8", "#22c55e", "#f59e0b", "#f87171"],
-      },
+    chart: {
+      bar: "#2563eb",
+      line: "#2563eb",
+      pie: ["#2563eb", "#22c55e", "#f59e0b", "#ef4444"],
     },
+  },
 
-    corporate: {
-      canvas: {
-        backgroundColor: "#f8fafc",
-      },
-      chart: {
-        bar: "#0f172a",
-        line: "#0f172a",
-        pie: ["#0f172a", "#64748b", "#94a3b8"],
-      },
+  dark: {
+    canvas: {
+      backgroundColor: "#111827",
     },
-  };
+    chart: {
+      bar: "#38bdf8",
+      line: "#38bdf8",
+      pie: ["#38bdf8", "#22c55e", "#f59e0b", "#f87171"],
+    },
+  },
+
+  corporate: {
+    canvas: {
+      backgroundColor: "#f8fafc",
+    },
+    chart: {
+      bar: "#0f172a",
+      line: "#0f172a",
+      pie: ["#0f172a", "#64748b", "#94a3b8"],
+    },
+  },
+};
 
 
+// ---------- MAIN COMPONENT ----------
 const DashboardProvidingPage = () => {
-  // ---------------- REFS & STATE ----------------
+
+
+  // ---------- REFS & STATE ----------
+  /**
+  Stores dashboard container reference and
+  manages application state for dashboard rendering.
+  */
   const dashboardRef = useRef(null);
   const [dataHealth, setDataHealth] = useState(null);
   const [showDataHealth, setShowDataHealth] = useState(false);
+
   const [canvasConfig, setCanvasConfig] = useState({
-  width: "100%",
-  height: "600px",
-  backgroundColor: "#ffffff",
+    width: "100%",
+    height: "600px",
+    backgroundColor: "#ffffff",
   });
+
   const [dashboardSpec, setDashboardSpec] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regenPrompt, setRegenPrompt] = useState("");
 
-  // ---------------- FETCH DASHBOARD DATA ----------------
+
+  // ---------- FETCH DASHBOARD DATA ----------
+  /**
+  Retrieves dashboard configuration and dataset preview
+  from backend when component loads.
+  */
   useEffect(() => {
+
     const token = localStorage.getItem("bisol_token");
 
     if (!token) {
@@ -73,104 +113,135 @@ const DashboardProvidingPage = () => {
       },
     })
       .then((res) => {
+
         if (res.status === 401) {
           localStorage.removeItem("bisol_token");
           window.location.href = "/login";
           return null;
         }
+
         if (!res.ok) {
           throw new Error("Failed to load dashboard");
         }
+
         return res.json();
       })
       .then((data) => {
-  const spec = data.dashboard_spec;
 
-  setDashboardSpec(spec);
-  setPreviewRows(data.preview_rows);
-  setDataHealth(data.data_health);
+        const spec = data.dashboard_spec;
 
-  if (spec.canvas) {
-    setCanvasConfig(spec.canvas);
-  }
+        setDashboardSpec(spec);
+        setPreviewRows(data.preview_rows);
+        setDataHealth(data.data_health);
 
-  setLoading(false);
-  });
+        if (spec.canvas) {
+          setCanvasConfig(spec.canvas);
+        }
+
+        setLoading(false);
+      });
+
   }, []);
 
-  //---------------- Dashboard Regeneration (FIXED) --------------
+
+  // ---------- DASHBOARD REGENERATION ----------
+  /**
+  Sends regeneration prompt to backend to update
+  the dashboard specification and insights.
+  */
   const handleRegenerate = async () => {
-  const token = localStorage.getItem("bisol_token");
 
-  if (!regenPrompt.trim()) {
-    alert("Please enter a prompt");
-    return;
-  }
+    const token = localStorage.getItem("bisol_token");
 
-  try {
-    setLoading(true);
+    if (!regenPrompt.trim()) {
+      alert("Please enter a prompt");
+      return;
+    }
 
-    const formData = new FormData();
-    formData.append("prompt", regenPrompt);
+    try {
 
-    const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
+      setLoading(true);
 
-    if (!res.ok) throw new Error("Failed to regenerate");
+      const formData = new FormData();
+      formData.append("prompt", regenPrompt);
 
-    const data = await res.json();
+      const res = await fetch("http://127.0.0.1:8000/generate-dashboard", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
-    console.log("NEW DATA:", data);
+      if (!res.ok) throw new Error("Failed to regenerate");
 
-    setDashboardSpec(null);
+      const data = await res.json();
 
-    setTimeout(() => {
-      setDashboardSpec({ ...data.dashboard_spec });
-      setPreviewRows(data.preview_rows);
-      setDataHealth(data.data_health);
+      console.log("NEW DATA:", data);
 
-      if (data.dashboard_spec.canvas) {
-        setCanvasConfig(data.dashboard_spec.canvas);
-      }
-    }, 50);
+      setDashboardSpec(null);
 
-    setRegenPrompt("");
-    alert("Dashboard updated successfully");
-  } catch (err) {
-    console.error(err);
-    alert("Regeneration failed");
-  } finally {
-    setLoading(false);
-  }
-};
+      setTimeout(() => {
+        setDashboardSpec({ ...data.dashboard_spec });
+        setPreviewRows(data.preview_rows);
+        setDataHealth(data.data_health);
 
-  //----------------- DASHBOARD SPEC PERSISTS------------
+        if (data.dashboard_spec.canvas) {
+          setCanvasConfig(data.dashboard_spec.canvas);
+        }
+      }, 50);
+
+      setRegenPrompt("");
+      alert("Dashboard updated successfully");
+
+    } catch (err) {
+
+      console.error(err);
+      alert("Regeneration failed");
+
+    } finally {
+
+      setLoading(false);
+
+    }
+  };
+
+
+  // ---------- DASHBOARD SPEC UPDATE ----------
+  /**
+  Updates canvas configuration and persists
+  the new configuration inside dashboard spec.
+  */
   const updateDashboardSpec = (newCanvasConfig) => {
-  setCanvasConfig(newCanvasConfig);
 
-  setDashboardSpec((prevSpec) => {
-    if (!prevSpec) return prevSpec;
+    setCanvasConfig(newCanvasConfig);
 
-    return {
-      ...prevSpec,
-      canvas: newCanvasConfig,
-    };
-  });
-};
+    setDashboardSpec((prevSpec) => {
 
-  // ---------------- DOWNLOAD FUNCTIONS ----------------
+      if (!prevSpec) return prevSpec;
+
+      return {
+        ...prevSpec,
+        canvas: newCanvasConfig,
+      };
+    });
+  };
+
+
+  // ---------- DOWNLOAD FUNCTIONS ----------
+  /**
+  Allows exporting the dashboard canvas
+  as PNG image.
+  */
   const downloadPNG = async () => {
+
     if (!dashboardRef.current) {
       alert("Dashboard not ready");
       return;
     }
 
     try {
+
       const dataUrl = await htmlToImage.toPng(dashboardRef.current, {
         backgroundColor: canvasConfig.backgroundColor,
         pixelRatio: 2,
@@ -180,22 +251,32 @@ const DashboardProvidingPage = () => {
       link.download = "dashboard.png";
       link.href = dataUrl;
       link.click();
+
     } catch (err) {
+
       console.error(err);
       alert("Failed to download image");
+
     }
   };
 
+
+  /**
+  Exports the dashboard canvas as PDF document.
+  */
   const downloadPDF = async () => {
+
     if (!dashboardRef.current) return;
 
     try {
+
       const dataUrl = await htmlToImage.toPng(dashboardRef.current, {
         backgroundColor: canvasConfig.backgroundColor,
         pixelRatio: 2,
       });
 
       const pdf = new jsPDF("landscape", "pt", "a4");
+
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
 
@@ -209,53 +290,34 @@ const DashboardProvidingPage = () => {
       );
 
       pdf.save("dashboard.pdf");
+
     } catch (err) {
+
       console.error(err);
       alert("Failed to download PDF");
+
     }
   };
 
-  // ---------------- SAFE CHART DATA GENERATOR ----------------
-  const generateChartData = (chart) => {
-    if (!chart || !chart.x || previewRows.length === 0) return [];
 
-    // COUNT-based charts
-    if (chart.y === "__count__") {
-      const counts = {};
+  // ---------- APPLY THEME ----------
+  /**
+  Applies selected theme to dashboard canvas
+  and updates chart color styles.
+  */
+  const applyTheme = (themeName) => {
 
-      previewRows.forEach((row) => {
-        const value = row[chart.x];
-        if (value === null || value === undefined) return;
-        counts[value] = (counts[value] || 0) + 1;
-      });
-
-      return Object.entries(counts).map(([key, val]) => ({
-        label: key,
-        value: val,
-      }));
-    }
-
-    // Numeric charts (future-ready)
-    return previewRows.map((row) => ({
-      label: row[chart.x],
-      value: row[chart.y],
-    }));
-  };
-
-  //----------------- APPLYING THEME METHOD--------
-    const applyTheme = (themeName) => {
     const theme = THEMES[themeName];
 
-    // Update canvas
     setCanvasConfig((prev) => ({
       ...prev,
       backgroundColor: theme.canvas.backgroundColor,
     }));
 
-    // Apply colors to charts
     setDashboardSpec((prev) => ({
       ...prev,
       charts: prev.charts.map((chart) => {
+
         if (chart.type === "bar") {
           return {
             ...chart,
@@ -281,21 +343,32 @@ const DashboardProvidingPage = () => {
       }),
     }));
   };
-  //----------------Data Health-----------------
-  
-useEffect(() => {
-  if (showDataHealth) {
-    document.body.style.overflow = "hidden";
-  } else {
-    document.body.style.overflow = "auto";
-  }
 
-  return () => {
-    document.body.style.overflow = "auto";
-  };
-}, [showDataHealth]);
 
-  // ---------------- UI STATES ----------------
+  // ---------- DATA HEALTH MODAL CONTROL ----------
+  /**
+  Prevents background scrolling when
+  the data health report modal is open.
+  */
+  useEffect(() => {
+
+    if (showDataHealth) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+
+  }, [showDataHealth]);
+
+
+  // ---------- UI STATES ----------
+  /**
+  Loading and error states for dashboard rendering.
+  */
   if (loading) {
     return <div className="dashboard-loading">Loading dashboard...</div>;
   }
@@ -304,9 +377,16 @@ useEffect(() => {
     return <div className="dashboard-error">No dashboard data available.</div>;
   }
 
-  // ---------------- RENDER ----------------
+
+  // ---------- UI RENDER ----------
+  /**
+  Main dashboard layout including canvas,
+  sidebar controls, chart rendering, and
+  regeneration interface.
+  */
+
   return (
-  <div className="dashboard-container">
+    <div className="dashboard-container">
   {/* HEADER */}
   <header className="dashboard-header">
     <img src={logo} alt="BiSol" />
@@ -333,15 +413,15 @@ useEffect(() => {
         )}
 
         {dashboardSpec.charts.map((chart, idx) => {
-          const data = generateChartData(chart);
+        const data = chart.data || [];
 
-          return (
-            <div className="chart-card" key={idx}>
-              <h3>{chart.title}</h3>
-              <ChartFactory chart={chart} data={data} />
-            </div>
-          );
-        })}
+        return (
+          <div className="chart-card" key={idx}>
+          <h3>{chart.title}</h3>
+          <ChartFactory chart={chart} data={data} />
+          </div>
+        );
+      })}
       </div>
     </div>
 

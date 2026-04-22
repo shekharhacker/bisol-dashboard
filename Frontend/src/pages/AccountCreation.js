@@ -1,9 +1,40 @@
+/**
+Account Creation component.
+
+Responsibilities:
+- Provide user interface for new account registration
+- Perform basic frontend validations for email and password
+- Send registration request to backend authentication API
+- Redirect user to login page after successful registration
+
+This component ensures a smooth account creation
+experience with basic client-side validation.
+*/
+
+
+// ---------- IMPORTS ----------
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/AccountCreation.css";
 import logo from "../assests/Logo.png";
 
+
+// ---------- ACCOUNT CREATION COMPONENT ----------
+/**
+Handles user registration flow.
+
+Features:
+- Input validation (name, email, password)
+- Backend API call for account creation
+- Loading state handling
+- Redirect to login page after success
+*/
 export default function AccountCreation() {
+
+  // ---------- STATE MANAGEMENT ----------
+  /**
+  Stores user input values and loading state.
+  */
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -12,14 +43,38 @@ export default function AccountCreation() {
 
   const navigate = useNavigate();
 
-  // ---- Validators (UX ONLY) ----
+
+  // ---------- VALIDATORS (UX ONLY) ----------
+  /**
+  Validates supported email providers.
+  */
   const validateEmail = (email) =>
     /^[a-zA-Z0-9._%+-]+@(gmail|yahoo|outlook|hotmail)\.com$/.test(email);
 
+  /**
+  Validates password strength.
+
+  Requirements:
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one lowercase letter
+  - One number
+  - One special character
+  */
   const validatePassword = (password) =>
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(password);
 
-  // ---- CREATE ACCOUNT ----
+
+  // ---------- CREATE ACCOUNT HANDLER ----------
+  /**
+  Handles form submission and account creation.
+
+  Flow:
+  1. Validate user inputs
+  2. Send registration request to backend
+  3. Handle success or error responses
+  4. Redirect user to login page on success
+  */
   const handleCreateAccount = async (e) => {
     e.preventDefault();
 
@@ -48,6 +103,11 @@ export default function AccountCreation() {
     setLoading(true);
 
     try {
+
+      // ---------- BACKEND API REQUEST ----------
+      /**
+      Sends registration request to backend authentication service.
+      */
       const res = await fetch("http://127.0.0.1:8000/auth/register", {
         method: "POST",
         headers: {
@@ -69,13 +129,21 @@ export default function AccountCreation() {
 
       alert("Account created successfully. Please login.");
       navigate("/login");
+
     } catch (err) {
+
+      // ---------- ERROR HANDLING ----------
       alert("Server error. Try again later.");
+
     } finally {
+
+      // ---------- LOADING STATE RESET ----------
       setLoading(false);
     }
   };
 
+
+  // ---------- UI RENDER ----------
   return (
     <div className="account-container">
       <form className="account-box" onSubmit={handleCreateAccount}>

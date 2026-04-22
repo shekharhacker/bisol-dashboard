@@ -1,36 +1,87 @@
+/**
+Reset Password component.
+
+Responsibilities:
+- Allow users to set a new password using reset token
+- Validate password confirmation
+- Send reset request to backend reset-password API
+- Handle expired or invalid reset links
+- Redirect user to login page after successful reset
+
+This component completes the password reset flow
+after the user clicks the reset link from email.
+*/
+
+
+// ---------- IMPORTS ----------
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "../styles/ResetPassword.css";
 
+
+// ---------- COMPONENT ----------
+/**
+Handles password reset using token received
+from the reset link.
+
+Flow:
+1. Extract token from URL
+2. Allow user to enter new password
+3. Submit reset request to backend
+4. Show success or error state
+*/
 export default function ResetPassword() {
+
+  // ---------- ROUTER HOOKS ----------
   const navigate = useNavigate();
   const { token } = useParams();
 
+
+  // ---------- STATE MANAGEMENT ----------
+  /**
+  Stores password inputs and UI state flags.
+  */
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [success, setSuccess] = useState(false);
   const [countdown, setCountdown] = useState(7);
   const [invalidToken, setInvalidToken] = useState(false);
 
-  // ⏳ Countdown after success
+
+  // ---------- SUCCESS REDIRECT COUNTDOWN ----------
+  /**
+  Starts countdown after password reset success
+  and automatically redirects user to login page.
+  */
   useEffect(() => {
+
     if (!success) return;
 
     const timer = setInterval(() => {
+
       setCountdown((prev) => {
+
         if (prev <= 1) {
           navigate("/login");
           clearInterval(timer);
           return 0;
         }
+
         return prev - 1;
       });
+
     }, 1000);
 
     return () => clearInterval(timer);
+
   }, [success, navigate]);
 
-  // ⛔ Invalid link (no token)
+
+  // ---------- INVALID LINK CHECK ----------
+  /**
+  Handles cases where reset token
+  is missing from the URL.
+  */
   if (!token) {
     return (
       <div className="auth-page">
@@ -42,15 +93,22 @@ export default function ResetPassword() {
     );
   }
 
-  // ⛔ Token expired / invalid (from backend)
+
+  // ---------- TOKEN EXPIRED STATE ----------
+  /**
+  Displays message when backend confirms
+  that the reset token is invalid or expired.
+  */
   if (invalidToken) {
     return (
       <div className="auth-page">
         <div className="auth-card">
           <h2>Link Expired</h2>
-          <p>This password reset link is invalid or has expired.
+          <p>
+            This password reset link is invalid or has expired.
             Try again with a new link.
           </p>
+
           <button onClick={() => navigate("/forgot-password")}>
             Request New Link
           </button>
@@ -59,8 +117,18 @@ export default function ResetPassword() {
     );
   }
 
-  // 🔗 Submit handler
+
+  // ---------- RESET PASSWORD HANDLER ----------
+  /**
+  Sends new password to backend reset API.
+
+  Flow:
+  1. Validate password confirmation
+  2. Send reset request with token
+  3. Handle success or invalid token response
+  */
   const handleSubmit = async (e) => {
+
     e.preventDefault();
 
     if (password !== confirmPassword) {
@@ -69,6 +137,8 @@ export default function ResetPassword() {
     }
 
     try {
+
+      // ---------- RESET PASSWORD API ----------
       const res = await fetch("http://127.0.0.1:8000/reset-password", {
         method: "POST",
         headers: {
@@ -89,19 +159,29 @@ export default function ResetPassword() {
       }
 
       setSuccess(true);
+
     } catch (err) {
+
+      // ---------- ERROR HANDLING ----------
       console.error(err);
       alert("Server error. Please try again later.");
+
     }
   };
 
-  // ✅ Success UI
+
+  // ---------- SUCCESS UI ----------
+  /**
+  Displayed when password reset
+  is completed successfully.
+  */
   if (success) {
     return (
       <div className="auth-page">
         <div className="auth-card">
           <h2>Password Updated</h2>
           <p>Your password has been reset successfully.</p>
+
           <p className="countdown">
             Redirecting to login in {countdown} seconds…
           </p>
@@ -110,13 +190,19 @@ export default function ResetPassword() {
     );
   }
 
-  // 🔐 Reset Form
+
+  // ---------- RESET FORM ----------
+  /**
+  Password reset input form.
+  */
   return (
     <div className="auth-page">
       <div className="auth-card">
+
         <h2>Set a new password</h2>
 
         <form onSubmit={handleSubmit}>
+
           <input
             type="password"
             placeholder="New password"
@@ -134,7 +220,9 @@ export default function ResetPassword() {
           />
 
           <button type="submit">Update Password</button>
+
         </form>
+
       </div>
     </div>
   );
