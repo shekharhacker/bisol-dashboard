@@ -40,70 +40,34 @@ def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    """
-    Validates JWT token and returns the authenticated user.
-
-    Flow:
-    1. Extract token from Authorization header
-    2. Decode token using SECRET_KEY and ALGORITHM
-    3. Extract user identifier (email from 'sub' field)
-    4. Fetch user from database
-    5. Raise exception if token is invalid or user not found
-
-    Args:
-        token (str): JWT token extracted from request
-        db (Session): Database session
-
-    Returns:
-        User: Authenticated user object
-
-    Raises:
-        HTTPException: If token is invalid or user does not exist
-    """
-
-    # ---------- COMMON AUTH ERROR ----------
-    """
-    Standard exception for authentication failure.
-    Returned for:
-    - Invalid token
-    - Expired token
-    - Missing user
-    """
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    print("RAW TOKEN:", token)
+
     try:
-        # ---------- DECODE JWT ----------
-        """
-        Decode the JWT token using secret key.
-
-        Expected payload:
-        {
-            "sub": user_email,
-            ...
-        }
-        """
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
-        # ---------- EXTRACT USER IDENTITY ----------
+        print("TOKEN PAYLOAD:", payload)
         email = payload.get("sub")
+        print("EMAIL FROM TOKEN:", email)
 
         if email is None:
+            print("TOKEN HAS NO SUB")
             raise credentials_exception
 
-    except JWTError:
-        # ---------- INVALID TOKEN ----------
+    except JWTError as e:
+        print("JWT DECODE ERROR:", str(e))
         raise credentials_exception
 
-    # ---------- FETCH USER FROM DATABASE ----------
     user = db.query(User).filter(User.email == email).first()
+    print("DB USER FOUND:", user.email if user else None)
 
-    # ---------- USER NOT FOUND ----------
     if user is None:
+        print("NO USER MATCHED TOKEN EMAIL")
         raise credentials_exception
 
-    # ---------- SUCCESS ----------
     return user
