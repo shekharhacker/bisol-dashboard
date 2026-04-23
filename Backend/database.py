@@ -35,7 +35,10 @@ Creates the core connection to the database.
 
 - Acts as the entry point for all DB operations
 """
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL,pool_pre_ping=True,
+    pool_recycle=1800,
+    pool_size=5,
+    max_overflow=10)
 
 
 # ---------- SESSION FACTORY ----------
