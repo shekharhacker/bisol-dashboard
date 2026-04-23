@@ -47,27 +47,20 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    print("RAW TOKEN:", token)
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print("TOKEN PAYLOAD:", payload)
         email = payload.get("sub")
-        print("EMAIL FROM TOKEN:", email)
 
         if email is None:
-            print("TOKEN HAS NO SUB")
             raise credentials_exception
 
     except JWTError as e:
-        print("JWT DECODE ERROR:", str(e))
         raise credentials_exception
 
     user = db.query(User).filter(User.email == email).first()
-    print("DB USER FOUND:", user.email if user else None)
 
     if user is None:
-        print("NO USER MATCHED TOKEN EMAIL")
         raise credentials_exception
 
     return user

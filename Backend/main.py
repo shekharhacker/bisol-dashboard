@@ -256,18 +256,10 @@ def build_chart_data(df: pd.DataFrame, chart_spec: dict):
 
     # Count-based chart
     if y_col == "__count__":
-        # Choose aggregation intelligently
-        agg_func = "sum"
-
-        y_lower = y_col.lower()
-
-        if "discount" in y_lower or "rate" in y_lower or "percentage" in y_lower:
-            agg_func = "mean"
-
         grouped = (
-            df.groupby(x_col)[y_col]
-            .agg(agg_func)
-            .reset_index()
+            df.groupby(x_col)
+            .size()
+            .reset_index(name="value")
         )
         return [
             {"label": str(row[x_col]), "value": int(row["value"])}
