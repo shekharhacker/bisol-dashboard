@@ -18,13 +18,6 @@ from email.mime.text import MIMEText
 from dotenv import load_dotenv
 
 # ---------- LOAD ENV VARIABLES ----------
-"""
-Loads environment variables from .env file.
-
-Expected variables:
-- MAIL_USER: Sender email address
-- MAIL_PASS: App password or email password
-"""
 load_dotenv()
 
 MAIL_USER = os.getenv("MAIL_USER")
@@ -35,24 +28,6 @@ MAIL_PASS = os.getenv("MAIL_PASS")
 def send_reset_email(to_email: str, token: str):
     """
     Sends a password reset email to the user.
-
-    Flow:
-    1. Generate reset link using token
-    2. Create email subject and body
-    3. Establish SMTP connection
-    4. Authenticate using sender credentials
-    5. Send email
-    6. Close connection
-
-    Args:
-        to_email (str): Recipient email address
-        token (str): Password reset token
-
-    Returns:
-        None
-
-    Raises:
-        Exception: Prints error if email sending fails
     """
 
     # --- Generate reset link ---
@@ -78,10 +53,12 @@ If you did not request this, please ignore this email.
     msg["From"] = MAIL_USER
     msg["To"] = to_email
 
+    server = None
+
     try:
-        # --- Connect to SMTP server ---
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()  # Secure connection
+        # --- Connect to SMTP server with timeout ---
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
+        server.starttls()
 
         # --- Login to email account ---
         server.login(MAIL_USER, MAIL_PASS)
@@ -89,9 +66,14 @@ If you did not request this, please ignore this email.
         # --- Send email ---
         server.sendmail(MAIL_USER, to_email, msg.as_string())
 
-        # --- Close connection ---
-        server.quit()
+        print(f"✅ Reset email sent to {to_email}")
 
     except Exception as e:
-        # --- Error handling ---
         print("❌ EMAIL ERROR:", e)
+
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
