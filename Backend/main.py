@@ -184,23 +184,39 @@ def infer_chart_spec(prompt: str, df: pd.DataFrame) -> dict:
     5. Return chart specification
     """
 
-    prompt_words = prompt.lower().replace("_", " ").split()
+    prompt_lower = prompt.lower()
     columns = list(df.columns)
-
-    normalized_column_map = {
-        normalize_text(col): col for col in columns
-    }
-
-    matched_columns = []
-    for word in prompt_words:
-        normalized_word = normalize_text(word)
-        for norm_col, original_col in normalized_column_map.items():
-            if normalized_word in norm_col or norm_col in normalized_word:
-                if original_col not in matched_columns:
-                    matched_columns.append(original_col)
 
     numeric_columns = df.select_dtypes(include="number").columns.tolist()
     categorical_columns = [col for col in columns if col not in numeric_columns]
+
+    matched_columns = []
+
+    # ---------- DIRECT COLUMN MATCHING ----------
+    """
+    Prefer columns whose names are explicitly mentioned
+    in the prompt.
+    """
+    for col in columns:
+        col_words = str(col).lower().replace("_", " ").split()
+        col_phrase = " ".join(col_words)
+
+        if col_phrase in prompt_lower:
+            matched_columns.append(col)
+
+    # ---------- FALLBACK TOKEN MATCHING ----------
+    """
+    If no direct phrase match is found, use word-level
+    matching as a fallback.
+    """
+    if not matched_columns:
+        prompt_words = prompt.lower().replace("_", " ").split()
+
+        for col in columns:
+            col_words = str(col).lower().replace("_", " ").split()
+
+            if any(word in col_words for word in prompt_words):
+                matched_columns.append(col)
 
     x_col = None
     y_col = None
@@ -217,11 +233,11 @@ def infer_chart_spec(prompt: str, df: pd.DataFrame) -> dict:
             y_col = col
             break
 
-    # If prompt has only numeric column, choose a default categorical x
+    # If no categorical match, fallback to first categorical column
     if not x_col and categorical_columns:
         x_col = categorical_columns[0]
 
-    # If no numeric column matched, fallback to count
+    # If no numeric match, fallback to count
     if not y_col:
         y_col = "__count__"
 
